@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
 const corsHeaders = {
@@ -28,7 +27,8 @@ Contactos realizados: ${contactCount}
 Historial:
 ${historialTexto}
 
-Escribí UNA sugerencia concreta y breve (máximo 2 oraciones) sobre qué decirle al cliente en el próximo contacto. Sé específico y directo.`
+Respondé ÚNICAMENTE con este JSON sin ningún texto adicional, sin markdown, sin bloques de código:
+{"sugerencia":"una oración con la estrategia","mensaje":"mensaje completo para WhatsApp en tono natural"}`
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -39,15 +39,26 @@ Escribí UNA sugerencia concreta y breve (máximo 2 oraciones) sobre qué decirl
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
-        max_tokens: 150,
+        max_tokens: 400,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
 
     const data = await response.json()
-    const sugerencia = data.content?.[0]?.text || 'No se pudo generar sugerencia.'
+    let texto = data.content?.[0]?.text || '{}'
+    
+    // Limpiar markdown si lo hay
+    texto = texto.replace(/```json/g, '').replace(/```/g, '').trim()
 
-    return new Response(JSON.stringify({ sugerencia }), {
+    let parsed = { sugerencia: '', mensaje: '' }
+    try {
+      parsed = JSON.parse(texto)
+    } catch {
+      parsed.sugerencia = texto
+      parsed.mensaje = ''
+    }
+
+    return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {

@@ -20,7 +20,9 @@ export default function ClienteDetail() {
   const [nota, setNota]                 = useState('')
   const [guardando, setGuardando]       = useState(false)
   const [sugerencia, setSugerencia]     = useState<string>('')
+  const [mensajeIA, setMensajeIA]       = useState<string>('')
   const [cargandoIA, setCargandoIA]     = useState(false)
+  const [copiado, setCopiado]           = useState(false)
 
   useEffect(() => { cargar() }, [id])
 
@@ -37,16 +39,18 @@ export default function ClienteDetail() {
   async function cargarSugerencia(c: Client, historial: any[]) {
     setCargandoIA(true)
     try {
-      const texto = await generarSugerencia(
+      const res = await generarSugerencia(
         c.name,
         c.vehicle_interest,
         c.temperature,
         c.contact_count,
         historial
       )
-      setSugerencia(texto)
+      setSugerencia(res.sugerencia)
+      setMensajeIA(res.mensaje)
     } catch (e) {
       setSugerencia('No se pudo generar sugerencia.')
+      setMensajeIA('')
     } finally {
       setCargandoIA(false)
     }
@@ -91,6 +95,14 @@ export default function ClienteDetail() {
     if (typeof window !== 'undefined') window.open(`tel:${phone}`)
   }
 
+  function copiarMensaje() {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(mensajeIA)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2000)
+    }
+  }
+
   if (!client) return (
     <View style={styles.loading}>
       <Text style={{ color: '#F0A020' }}>Cargando...</Text>
@@ -99,7 +111,6 @@ export default function ClienteDetail() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.back}>‹ Volver</Text>
@@ -121,17 +132,27 @@ export default function ClienteDetail() {
         </View>
       </View>
 
-      {/* Sugerencia IA */}
       <View style={styles.iaStrip}>
         <Text style={styles.iaTitle}>✦ SUGERENCIA IA</Text>
         {cargandoIA ? (
           <Text style={styles.iaText}>Analizando historial...</Text>
         ) : (
-          <Text style={styles.iaText}>{sugerencia}</Text>
+          <>
+            <Text style={styles.iaText}>{sugerencia}</Text>
+            {mensajeIA ? (
+              <>
+                <View style={styles.iaDivider} />
+                <Text style={styles.iaMensajeLabel}>MENSAJE LISTO PARA WHATSAPP</Text>
+                <Text style={styles.iaMensaje}>{mensajeIA}</Text>
+                <TouchableOpacity style={styles.iaCopyBtn} onPress={copiarMensaje}>
+                  <Text style={styles.iaCopyText}>{copiado ? '✅ Copiado' : '📋 Copiar mensaje'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+          </>
         )}
       </View>
 
-      {/* Acciones rápidas */}
       <View style={styles.quickActions}>
         <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#082A18' }]} onPress={llamar}>
           <Text style={styles.qaIcon}>📞</Text>
@@ -153,7 +174,6 @@ export default function ClienteDetail() {
         )}
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         {(['info','historial'] as const).map(t => (
           <TouchableOpacity key={t} onPress={() => setTab(t)} style={[styles.tabBtn, tab === t && styles.tabBtnActive]}>
@@ -222,7 +242,6 @@ export default function ClienteDetail() {
         )}
       </ScrollView>
 
-      {/* Modal nota */}
       <Modal visible={modalNota} animationType='slide' transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -267,6 +286,11 @@ const styles = StyleSheet.create({
   iaStrip:            { margin: 12, backgroundColor: '#1A0A38', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#8B5CF644' },
   iaTitle:            { color: '#8B5CF6', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 6 },
   iaText:             { color: '#AAAABF', fontSize: 13, lineHeight: 20 },
+  iaDivider:          { height: 1, backgroundColor: '#252535', marginVertical: 10 },
+  iaMensajeLabel:     { color: '#8B5CF6', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 6 },
+  iaMensaje:          { color: '#EEEEF5', fontSize: 12, lineHeight: 20, fontStyle: 'italic' },
+  iaCopyBtn:          { backgroundColor: '#252535', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
+  iaCopyText:         { color: '#F0A020', fontSize: 12, fontWeight: '700' },
   quickActions:       { flexDirection: 'row', padding: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: '#252535' },
   qaBtn:              { flex: 1, alignItems: 'center', padding: 10, borderRadius: 12 },
   qaIcon:             { fontSize: 20 },
