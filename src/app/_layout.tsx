@@ -31,6 +31,10 @@ export default function Layout() {
         options={{ title: 'Post-venta', tabBarIcon: () => <Text>🤝</Text> }}
       />
       <Tabs.Screen
+        name="metricas"
+        options={{ title: 'Métricas', tabBarIcon: () => <Text>📊</Text> }}
+      />
+      <Tabs.Screen
         name="cliente/[id]"
         options={{ href: null }}
       />
