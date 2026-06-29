@@ -38,6 +38,10 @@ export default function Layout() {
         name="cliente/[id]"
         options={{ href: null }}
       />
+      <Tabs.Screen
+        name="cliente/editar/[id]"
+        options={{ href: null }}
+      />
     </Tabs>
   )
 }

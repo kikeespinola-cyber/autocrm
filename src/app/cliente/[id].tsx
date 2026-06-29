@@ -114,9 +114,14 @@ export default function ClienteDetail() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>‹ Volver</Text>
-        </TouchableOpacity>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.back}>‹ Volver</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push(`/cliente/editar/${id}`)}>
+            <Text style={styles.editBtn}>Editar ✏️</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{client.name.slice(0,2).toUpperCase()}</Text>
@@ -209,6 +214,7 @@ export default function ClienteDetail() {
                 { label: 'Trabajo',     value: client.job },
                 { label: 'Cumpleaños',  value: client.birthday },
                 { label: 'Club',        value: client.club },
+                { label: 'Notas',       value: client.notes },
                 { label: 'Contactos',   value: `${client.contact_count} realizados` },
               ].filter(r => r.value).map(r => (
                 <View key={r.label} style={styles.infoRow}>
@@ -286,7 +292,9 @@ const styles = StyleSheet.create({
   container:          { flex: 1, backgroundColor: '#0A0A0F' },
   loading:            { flex: 1, backgroundColor: '#0A0A0F', alignItems: 'center', justifyContent: 'center' },
   header:             { padding: 20, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#252535' },
-  back:               { color: '#F0A020', fontSize: 14, fontWeight: '700', marginBottom: 12 },
+  headerTop:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  back:               { color: '#F0A020', fontSize: 14, fontWeight: '700' },
+  editBtn:            { color: '#55556A', fontSize: 13, fontWeight: '600' },
   profileRow:         { flexDirection: 'row', alignItems: 'center', gap: 14 },
   avatar:             { width: 52, height: 52, borderRadius: 26, backgroundColor: '#7B3FE4', alignItems: 'center', justifyContent: 'center' },
   avatarText:         { color: '#fff', fontSize: 18, fontWeight: '800' },
