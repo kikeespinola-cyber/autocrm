@@ -16,31 +16,23 @@ export default function Layout() {
     >
       <Tabs.Screen
         name="index"
-        options={{
-          title: 'Hoy',
-          tabBarIcon: () => <Text>⚡</Text>,
-        }}
+        options={{ title: 'Hoy', tabBarIcon: () => <Text>⚡</Text> }}
       />
       <Tabs.Screen
         name="clientes"
-        options={{
-          title: 'Clientes',
-          tabBarIcon: () => <Text>👥</Text>,
-        }}
+        options={{ title: 'Clientes', tabBarIcon: () => <Text>👥</Text> }}
       />
       <Tabs.Screen
         name="pipeline"
-        options={{
-          title: 'Pipeline',
-          tabBarIcon: () => <Text>◈</Text>,
-        }}
+        options={{ title: 'Pipeline', tabBarIcon: () => <Text>◈</Text> }}
       />
       <Tabs.Screen
         name="postventa"
-        options={{
-          title: 'Post-venta',
-          tabBarIcon: () => <Text>🤝</Text>,
-        }}
+        options={{ title: 'Post-venta', tabBarIcon: () => <Text>🤝</Text> }}
+      />
+      <Tabs.Screen
+        name="cliente/[id]"
+        options={{ href: null }}
       />
     </Tabs>
   )
