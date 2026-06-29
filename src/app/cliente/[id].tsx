@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState, useEffect } from 'react'
 import { Client, Interaction } from '../../lib/types'
 import { supabase } from '../../lib/supabase'
+import { generarSugerencia } from '../../lib/ia'
 
 const tempColor = (t: string) => t === 'hot' ? '#FF4444' : t === 'warm' ? '#F0A020' : '#4A8AE8'
 const tempLabel = (t: string) => t === 'hot' ? '🔴 Hot' : t === 'warm' ? '🟡 Warm' : '🔵 Cold'
@@ -12,20 +13,43 @@ const iconFor   = (t: string) => ({ call:'📞', whatsapp:'💬', visit:'🏢', 
 export default function ClienteDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-  const [client, setClient]           = useState<Client | null>(null)
+  const [client, setClient]             = useState<Client | null>(null)
   const [interactions, setInteractions] = useState<Interaction[]>([])
-  const [tab, setTab]                 = useState<'info'|'historial'>('info')
-  const [modalNota, setModalNota]     = useState(false)
-  const [nota, setNota]               = useState('')
-  const [guardando, setGuardando]     = useState(false)
+  const [tab, setTab]                   = useState<'info'|'historial'>('info')
+  const [modalNota, setModalNota]       = useState(false)
+  const [nota, setNota]                 = useState('')
+  const [guardando, setGuardando]       = useState(false)
+  const [sugerencia, setSugerencia]     = useState<string>('')
+  const [cargandoIA, setCargandoIA]     = useState(false)
 
   useEffect(() => { cargar() }, [id])
 
   async function cargar() {
     const { data: c } = await supabase.from('clients').select('*').eq('id', id).single()
     const { data: i } = await supabase.from('interactions').select('*').eq('client_id', id).order('created_at', { ascending: false })
-    if (c) setClient(c)
+    if (c) {
+      setClient(c)
+      cargarSugerencia(c, i || [])
+    }
     if (i) setInteractions(i)
+  }
+
+  async function cargarSugerencia(c: Client, historial: any[]) {
+    setCargandoIA(true)
+    try {
+      const texto = await generarSugerencia(
+        c.name,
+        c.vehicle_interest,
+        c.temperature,
+        c.contact_count,
+        historial
+      )
+      setSugerencia(texto)
+    } catch (e) {
+      setSugerencia('No se pudo generar sugerencia.')
+    } finally {
+      setCargandoIA(false)
+    }
   }
 
   async function cambiarTemp(t: string) {
@@ -97,6 +121,16 @@ export default function ClienteDetail() {
         </View>
       </View>
 
+      {/* Sugerencia IA */}
+      <View style={styles.iaStrip}>
+        <Text style={styles.iaTitle}>✦ SUGERENCIA IA</Text>
+        {cargandoIA ? (
+          <Text style={styles.iaText}>Analizando historial...</Text>
+        ) : (
+          <Text style={styles.iaText}>{sugerencia}</Text>
+        )}
+      </View>
+
       {/* Acciones rápidas */}
       <View style={styles.quickActions}>
         <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#082A18' }]} onPress={llamar}>
@@ -133,7 +167,6 @@ export default function ClienteDetail() {
       <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {tab === 'info' && (
           <>
-            {/* Datos */}
             <View style={styles.infoCard}>
               {[
                 { label: 'Teléfono',    value: client.phone },
@@ -151,7 +184,6 @@ export default function ClienteDetail() {
               ))}
             </View>
 
-            {/* Cambiar temperatura */}
             {!client.sold && (
               <>
                 <Text style={styles.sectionLabel}>TEMPERATURA</Text>
@@ -232,6 +264,9 @@ const styles = StyleSheet.create({
   badge:              { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   docsTag:            { color: '#22C97A', fontSize: 11, fontWeight: '700' },
   soldTag:            { color: '#22C97A', fontSize: 11, fontWeight: '700' },
+  iaStrip:            { margin: 12, backgroundColor: '#1A0A38', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#8B5CF644' },
+  iaTitle:            { color: '#8B5CF6', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 6 },
+  iaText:             { color: '#AAAABF', fontSize: 13, lineHeight: 20 },
   quickActions:       { flexDirection: 'row', padding: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: '#252535' },
   qaBtn:              { flex: 1, alignItems: 'center', padding: 10, borderRadius: 12 },
   qaIcon:             { fontSize: 20 },
