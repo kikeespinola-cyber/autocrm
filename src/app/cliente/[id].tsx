@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Client, Interaction } from '../../lib/types'
 import { supabase } from '../../lib/supabase'
 import { generarSugerencia } from '../../lib/ia'
+import { useTipoCambio } from '../../hooks/useTipoCambio'
 
 const tempColor = (t: string) => t === 'hot' ? '#FF4444' : t === 'warm' ? '#F0A020' : '#4A8AE8'
 const tempLabel = (t: string) => t === 'hot' ? '🔴 Hot' : t === 'warm' ? '🟡 Warm' : '🔵 Cold'
@@ -23,6 +24,7 @@ export default function ClienteDetail() {
   const [mensajeIA, setMensajeIA]       = useState<string>('')
   const [cargandoIA, setCargandoIA]     = useState(false)
   const [copiado, setCopiado]           = useState(false)
+  const { formatDual } = useTipoCambio()
 
   useEffect(() => { cargar() }, [id])
 
@@ -210,7 +212,7 @@ export default function ClienteDetail() {
               {[
                 { label: 'Teléfono',    value: client.phone },
                 { label: 'Vehículo',    value: client.vehicle_interest },
-                { label: 'Presupuesto', value: client.budget },
+                { label: 'Presupuesto', value: formatDual(client.budget) },
                 { label: 'Trabajo',     value: client.job },
                 { label: 'Cumpleaños',  value: client.birthday },
                 { label: 'Club',        value: client.club },
