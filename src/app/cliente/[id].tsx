@@ -67,16 +67,15 @@ export default function ClienteDetail() {
   }
 
   async function marcarVendido() {
-    Alert.alert('Marcar como vendido', '¿Confirmás que se cerró esta venta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Confirmar', onPress: async () => {
-        await supabase.from('clients').update({ sold: true, sale_date: new Date().toISOString().split('T')[0] }).eq('id', id)
-        await supabase.from('interactions').insert({ client_id: id, type: 'sale', content: '✅ Venta cerrada' })
-        setClient(prev => prev ? { ...prev, sold: true } : prev)
-        Alert.alert('¡Venta cerrada!', '🎉 Movido a Post-venta')
-      }}
-    ])
-  }
+  const confirmar = typeof window !== 'undefined'
+    ? window.confirm('¿Confirmás que se cerró esta venta?')
+    : false
+  if (!confirmar) return
+  await supabase.from('clients').update({ sold: true, sale_date: new Date().toISOString().split('T')[0] }).eq('id', id)
+  await supabase.from('interactions').insert({ client_id: id, type: 'sale', content: '✅ Venta cerrada' })
+  setClient(prev => prev ? { ...prev, sold: true } : prev)
+  if (typeof window !== 'undefined') window.alert('¡Venta cerrada! 🎉 Movido a Post-venta')
+}
 
   async function guardarNota() {
     if (!nota.trim()) return
