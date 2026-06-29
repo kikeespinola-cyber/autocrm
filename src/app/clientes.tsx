@@ -18,6 +18,9 @@ export default function ClientesScreen() {
   const [telefono, setTelefono]       = useState('')
   const [vehiculo, setVehiculo]       = useState('')
   const [presupuesto, setPresupuesto] = useState('')
+  const [trabajo, setTrabajo]         = useState('')
+  const [cumple, setCumple]           = useState('')
+  const [club, setClub]               = useState('')
   const [temp, setTemp]               = useState<'hot'|'warm'|'cold'>('warm')
   const [guardando, setGuardando]     = useState(false)
 
@@ -34,6 +37,11 @@ export default function ClientesScreen() {
     }
   }
 
+  function limpiarForm() {
+    setNombre(''); setTelefono(''); setVehiculo(''); setPresupuesto('')
+    setTrabajo(''); setCumple(''); setClub(''); setTemp('warm')
+  }
+
   async function guardarCliente() {
     if (!nombre.trim()) {
       Alert.alert('Error', 'El nombre es obligatorio')
@@ -46,9 +54,12 @@ export default function ClientesScreen() {
         phone: telefono.trim() || null,
         vehicle_interest: vehiculo.trim() || null,
         budget: presupuesto.trim() || null,
+        job: trabajo.trim() || null,
+        birthday: cumple.trim() || null,
+        club: club.trim() || null,
         temperature: temp,
       })
-      setNombre(''); setTelefono(''); setVehiculo(''); setPresupuesto(''); setTemp('warm')
+      limpiarForm()
       setModal(false)
       await cargar()
     } catch (e) {
@@ -90,6 +101,7 @@ export default function ClientesScreen() {
                 <Text style={styles.cardName}>{c.name}</Text>
                 <Text style={styles.cardVehicle}>{c.vehicle_interest || 'Sin vehículo asignado'}</Text>
                 <Text style={styles.cardBudget}>{c.budget || ''}</Text>
+                {c.job && <Text style={styles.cardJob}>💼 {c.job}</Text>}
               </View>
               <Text style={[styles.badge, { color: tempColor(c.temperature), backgroundColor: tempDim(c.temperature) }]}>
                 {tempLabel(c.temperature)}
@@ -112,42 +124,53 @@ export default function ClientesScreen() {
 
       <Modal visible={modal} animationType='slide' transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitulo}>Nuevo cliente</Text>
+          <ScrollView>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitulo}>Nuevo cliente</Text>
 
-            <Text style={styles.inputLabel}>Nombre *</Text>
-            <TextInput style={styles.input} placeholder="Ej: Carlos Mendoza" placeholderTextColor='#55556A' value={nombre} onChangeText={setNombre} />
+              <Text style={styles.inputLabel}>Nombre *</Text>
+              <TextInput style={styles.input} placeholder="Ej: Carlos Mendoza" placeholderTextColor='#55556A' value={nombre} onChangeText={setNombre} />
 
-            <Text style={styles.inputLabel}>Teléfono</Text>
-            <TextInput style={styles.input} placeholder="0981 234 567" placeholderTextColor='#55556A' value={telefono} onChangeText={setTelefono} keyboardType='phone-pad' />
+              <Text style={styles.inputLabel}>Teléfono</Text>
+              <TextInput style={styles.input} placeholder="0981 234 567" placeholderTextColor='#55556A' value={telefono} onChangeText={setTelefono} keyboardType='phone-pad' />
 
-            <Text style={styles.inputLabel}>Vehículo de interés</Text>
-            <TextInput style={styles.input} placeholder="Ej: Toyota Hilux 2024" placeholderTextColor='#55556A' value={vehiculo} onChangeText={setVehiculo} />
+              <Text style={styles.inputLabel}>Vehículo de interés</Text>
+              <TextInput style={styles.input} placeholder="Ej: Toyota Hilux 2024" placeholderTextColor='#55556A' value={vehiculo} onChangeText={setVehiculo} />
 
-            <Text style={styles.inputLabel}>Presupuesto</Text>
-            <TextInput style={styles.input} placeholder="Ej: ₲ 180.000.000" placeholderTextColor='#55556A' value={presupuesto} onChangeText={setPresupuesto} />
+              <Text style={styles.inputLabel}>Presupuesto</Text>
+              <TextInput style={styles.input} placeholder="Ej: ₲ 180.000.000" placeholderTextColor='#55556A' value={presupuesto} onChangeText={setPresupuesto} />
 
-            <Text style={styles.inputLabel}>Temperatura</Text>
-            <View style={styles.tempRow}>
-              {(['hot','warm','cold'] as const).map(t => (
-                <TouchableOpacity key={t} onPress={() => setTemp(t)}
-                  style={[styles.tempBtn, { backgroundColor: temp === t ? tempColor(t) : tempDim(t), borderColor: tempColor(t) }]}>
-                  <Text style={[styles.tempBtnText, { color: temp === t ? '#fff' : tempColor(t) }]}>
-                    {tempLabel(t)}
-                  </Text>
+              <Text style={styles.inputLabel}>Trabajo / Rubro</Text>
+              <TextInput style={styles.input} placeholder="Ej: Transportista, Agropecuario..." placeholderTextColor='#55556A' value={trabajo} onChangeText={setTrabajo} />
+
+              <Text style={styles.inputLabel}>Cumpleaños</Text>
+              <TextInput style={styles.input} placeholder="Ej: 14 Jul" placeholderTextColor='#55556A' value={cumple} onChangeText={setCumple} />
+
+              <Text style={styles.inputLabel}>Club de fútbol</Text>
+              <TextInput style={styles.input} placeholder="Ej: Olimpia, Cerro..." placeholderTextColor='#55556A' value={club} onChangeText={setClub} />
+
+              <Text style={styles.inputLabel}>Temperatura</Text>
+              <View style={styles.tempRow}>
+                {(['hot','warm','cold'] as const).map(t => (
+                  <TouchableOpacity key={t} onPress={() => setTemp(t)}
+                    style={[styles.tempBtn, { backgroundColor: temp === t ? tempColor(t) : tempDim(t), borderColor: tempColor(t) }]}>
+                    <Text style={[styles.tempBtnText, { color: temp === t ? '#fff' : tempColor(t) }]}>
+                      {tempLabel(t)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.modalBtns}>
+                <TouchableOpacity style={styles.btnCancelar} onPress={() => { limpiarForm(); setModal(false) }}>
+                  <Text style={styles.btnCancelarText}>Cancelar</Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity style={styles.btnGuardar} onPress={guardarCliente} disabled={guardando}>
+                  <Text style={styles.btnGuardarText}>{guardando ? 'Guardando...' : 'Guardar'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.btnCancelar} onPress={() => setModal(false)}>
-                <Text style={styles.btnCancelarText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.btnGuardar} onPress={guardarCliente} disabled={guardando}>
-                <Text style={styles.btnGuardarText}>{guardando ? 'Guardando...' : 'Guardar'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -169,6 +192,7 @@ const styles = StyleSheet.create({
   cardName:        { color: '#EEEEF5', fontSize: 14, fontWeight: '700' },
   cardVehicle:     { color: '#AAAABF', fontSize: 12, marginTop: 2 },
   cardBudget:      { color: '#F0A020', fontSize: 11, marginTop: 2, fontWeight: '600' },
+  cardJob:         { color: '#55556A', fontSize: 11, marginTop: 2 },
   badge:           { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   empty:           { alignItems: 'center', marginTop: 60 },
   emptyText:       { color: '#EEEEF5', fontSize: 16, fontWeight: '700' },
