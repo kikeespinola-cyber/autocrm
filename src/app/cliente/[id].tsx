@@ -39,13 +39,7 @@ export default function ClienteDetail() {
   async function cargarSugerencia(c: Client, historial: any[]) {
     setCargandoIA(true)
     try {
-      const res = await generarSugerencia(
-        c.name,
-        c.vehicle_interest,
-        c.temperature,
-        c.contact_count,
-        historial
-      )
+      const res = await generarSugerencia(c.name, c.vehicle_interest, c.temperature, c.contact_count, historial)
       setSugerencia(res.sugerencia)
       setMensajeIA(res.mensaje)
     } catch (e) {
@@ -54,6 +48,15 @@ export default function ClienteDetail() {
     } finally {
       setCargandoIA(false)
     }
+  }
+
+  async function registrarContacto(type: string, content: string) {
+    await supabase.from('interactions').insert({ client_id: id, type, content })
+    await supabase.from('clients').update({
+      last_contact_at: new Date().toISOString(),
+      contact_count: (client?.contact_count || 0) + 1
+    }).eq('id', id)
+    await cargar()
   }
 
   async function cambiarTemp(t: string) {
@@ -86,8 +89,7 @@ export default function ClienteDetail() {
 
   function abrirWhatsApp() {
     const phone = client?.phone?.replace(/\D/g, '') || ''
-    const url = `https://wa.me/595${phone}`
-    if (typeof window !== 'undefined') window.open(url, '_blank')
+    if (typeof window !== 'undefined') window.open(`https://wa.me/595${phone}`, '_blank')
   }
 
   function llamar() {
@@ -154,22 +156,34 @@ export default function ClienteDetail() {
       </View>
 
       <View style={styles.quickActions}>
-        <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#082A18' }]} onPress={llamar}>
+        <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#082A18' }]} onPress={() => registrarContacto('call', 'Llamada realizada')}>
           <Text style={styles.qaIcon}>📞</Text>
-          <Text style={[styles.qaLabel, { color: '#22C97A' }]}>Llamar</Text>
+          <Text style={[styles.qaLabel, { color: '#22C97A' }]}>Llamé</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#082210' }]} onPress={abrirWhatsApp}>
+        <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#082210' }]} onPress={() => registrarContacto('whatsapp', 'WhatsApp enviado')}>
           <Text style={styles.qaIcon}>💬</Text>
-          <Text style={[styles.qaLabel, { color: '#25D366' }]}>WhatsApp</Text>
+          <Text style={[styles.qaLabel, { color: '#25D366' }]}>WA enviado</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#2A0808' }]} onPress={() => registrarContacto('call', 'Llamada — no contestó')}>
+          <Text style={styles.qaIcon}>📵</Text>
+          <Text style={[styles.qaLabel, { color: '#FF4444' }]}>No contestó</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#0A1428' }]} onPress={() => setModalNota(true)}>
           <Text style={styles.qaIcon}>📝</Text>
           <Text style={[styles.qaLabel, { color: '#4A8AE8' }]}>Nota</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.secondActions}>
+        <TouchableOpacity style={styles.waBtn} onPress={abrirWhatsApp}>
+          <Text style={styles.waBtnText}>💬 Abrir WhatsApp</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.llamarBtn} onPress={llamar}>
+          <Text style={styles.llamarBtnText}>📞 Llamar</Text>
+        </TouchableOpacity>
         {!client.sold && (
-          <TouchableOpacity style={[styles.qaBtn, { backgroundColor: '#082A18' }]} onPress={marcarVendido}>
-            <Text style={styles.qaIcon}>🏆</Text>
-            <Text style={[styles.qaLabel, { color: '#22C97A' }]}>Vendido</Text>
+          <TouchableOpacity style={styles.vendidoBtn} onPress={marcarVendido}>
+            <Text style={styles.vendidoBtnText}>🏆 Vendido</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -203,7 +217,6 @@ export default function ClienteDetail() {
                 </View>
               ))}
             </View>
-
             {!client.sold && (
               <>
                 <Text style={styles.sectionLabel}>TEMPERATURA</Text>
@@ -221,7 +234,6 @@ export default function ClienteDetail() {
             )}
           </>
         )}
-
         {tab === 'historial' && (
           <>
             {interactions.length === 0 ? (
@@ -291,10 +303,17 @@ const styles = StyleSheet.create({
   iaMensaje:          { color: '#EEEEF5', fontSize: 12, lineHeight: 20, fontStyle: 'italic' },
   iaCopyBtn:          { backgroundColor: '#252535', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
   iaCopyText:         { color: '#F0A020', fontSize: 12, fontWeight: '700' },
-  quickActions:       { flexDirection: 'row', padding: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: '#252535' },
+  quickActions:       { flexDirection: 'row', padding: 12, paddingBottom: 6, gap: 8 },
   qaBtn:              { flex: 1, alignItems: 'center', padding: 10, borderRadius: 12 },
-  qaIcon:             { fontSize: 20 },
-  qaLabel:            { fontSize: 10, fontWeight: '700', marginTop: 4 },
+  qaIcon:             { fontSize: 18 },
+  qaLabel:            { fontSize: 9, fontWeight: '700', marginTop: 3 },
+  secondActions:      { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 1, borderBottomColor: '#252535' },
+  waBtn:              { flex: 1, backgroundColor: '#082210', borderRadius: 10, padding: 8, alignItems: 'center' },
+  waBtnText:          { color: '#25D366', fontSize: 11, fontWeight: '700' },
+  llamarBtn:          { flex: 1, backgroundColor: '#082A18', borderRadius: 10, padding: 8, alignItems: 'center' },
+  llamarBtnText:      { color: '#22C97A', fontSize: 11, fontWeight: '700' },
+  vendidoBtn:         { flex: 1, backgroundColor: '#2A1A00', borderRadius: 10, padding: 8, alignItems: 'center' },
+  vendidoBtnText:     { color: '#F0A020', fontSize: 11, fontWeight: '700' },
   tabs:               { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#252535' },
   tabBtn:             { flex: 1, padding: 12, alignItems: 'center' },
   tabBtnActive:       { borderBottomWidth: 2, borderBottomColor: '#F0A020' },
