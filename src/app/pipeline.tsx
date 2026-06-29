@@ -1,5 +1,5 @@
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
 import { useState, useEffect } from 'react'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
@@ -16,9 +16,10 @@ const GRUPOS = [
 
 export default function PipelineScreen() {
   const router = useRouter()
+  const params = useLocalSearchParams<{ filter?: string }>()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
-  const [activo, setActivo]   = useState('hot')
+  const [activo, setActivo]   = useState(params.filter || 'hot')
 
   useEffect(() => { cargar() }, [])
 

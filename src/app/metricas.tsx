@@ -1,9 +1,11 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'expo-router'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 
 export default function MetricasScreen() {
+  const router = useRouter()
   const [clients, setClients] = useState<Client[]>([])
 
   useEffect(() => { cargar() }, [])
@@ -40,30 +42,38 @@ export default function MetricasScreen() {
         <Text style={styles.mainSub}>{vendidos} vendidos de {total} totales</Text>
       </View>
 
-      {/* Stats grid */}
+      {/* Embudo clickeable */}
       <Text style={styles.sectionLabel}>EMBUDO</Text>
       <View style={styles.grid}>
         {[
-          { num: hot,      label: 'Hot',      color: '#FF4444', dim: '#2A0808' },
-          { num: warm,     label: 'Warm',     color: '#F0A020', dim: '#2A1A00' },
-          { num: cold,     label: 'Cold',     color: '#4A8AE8', dim: '#0A1428' },
-          { num: vendidos, label: 'Cerrados', color: '#22C97A', dim: '#082A18' },
+          { num: hot,      label: 'Hot',      color: '#FF4444', dim: '#2A0808', filter: 'hot' },
+          { num: warm,     label: 'Warm',     color: '#F0A020', dim: '#2A1A00', filter: 'warm' },
+          { num: cold,     label: 'Cold',     color: '#4A8AE8', dim: '#0A1428', filter: 'cold' },
+          { num: vendidos, label: 'Cerrados', color: '#22C97A', dim: '#082A18', filter: 'sold' },
         ].map(s => (
-          <View key={s.label} style={[styles.gridCard, { backgroundColor: s.dim, borderColor: s.color + '44' }]}>
+          <TouchableOpacity
+            key={s.label}
+            style={[styles.gridCard, { backgroundColor: s.dim, borderColor: s.color + '44' }]}
+            onPress={() => router.push(`/pipeline?filter=${s.filter}`)}
+          >
             <Text style={[styles.gridNum, { color: s.color }]}>{s.num}</Text>
             <Text style={[styles.gridLabel, { color: s.color }]}>{s.label}</Text>
-          </View>
+            <Text style={[styles.gridArrow, { color: s.color }]}>Ver →</Text>
+          </TouchableOpacity>
         ))}
       </View>
 
-      {/* Documentos */}
+      {/* Documentación clickeable */}
       <Text style={styles.sectionLabel}>DOCUMENTACIÓN</Text>
       <View style={styles.docsCard}>
-        <View style={styles.docsRow}>
+        <TouchableOpacity style={styles.docsRow} onPress={() => router.push('/clientes?filter=docs')}>
           <Text style={styles.docsLabel}>📄 Con documentos</Text>
-          <Text style={styles.docsNum}>{conDocs}</Text>
-        </View>
-        <View style={styles.docsRow}>
+          <View style={styles.docsRight}>
+            <Text style={styles.docsNum}>{conDocs}</Text>
+            <Text style={styles.docsArrow}>Ver →</Text>
+          </View>
+        </TouchableOpacity>
+        <View style={[styles.docsRow, { borderBottomWidth: 0 }]}>
           <Text style={styles.docsLabel}>⏳ Sin documentos</Text>
           <Text style={styles.docsNum}>{total - conDocs}</Text>
         </View>
@@ -72,8 +82,8 @@ export default function MetricasScreen() {
         </View>
       </View>
 
-      {/* Consejo */}
-      <View style={styles.tipCard}>
+      {/* Foco de hoy clickeable */}
+      <TouchableOpacity style={styles.tipCard} onPress={() => router.push('/')}>
         <Text style={styles.tipTitle}>💡 Foco de hoy</Text>
         <Text style={styles.tipText}>
           {hot > 0
@@ -82,7 +92,8 @@ export default function MetricasScreen() {
             ? `Sin clientes Hot hoy. Trabajá los ${warm} Warm para subirlos de temperatura.`
             : 'Sin clientes activos. Agregá nuevos prospectos para arrancar el embudo.'}
         </Text>
-      </View>
+        <Text style={styles.tipArrow}>Ver Tu Día →</Text>
+      </TouchableOpacity>
 
     </ScrollView>
   )
@@ -104,11 +115,15 @@ const styles = StyleSheet.create({
   gridCard:     { width: '48%', borderRadius: 14, padding: 16, borderWidth: 1 },
   gridNum:      { fontSize: 32, fontWeight: '800' },
   gridLabel:    { fontSize: 12, fontWeight: '700', marginTop: 4 },
+  gridArrow:    { fontSize: 11, fontWeight: '600', marginTop: 8, opacity: 0.7 },
   docsCard:     { backgroundColor: '#1A1A24', borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#252535' },
-  docsRow:      { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#252535' },
+  docsRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#252535' },
   docsLabel:    { color: '#AAAABF', fontSize: 13 },
+  docsRight:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
   docsNum:      { color: '#EEEEF5', fontSize: 13, fontWeight: '700' },
+  docsArrow:    { color: '#22C97A', fontSize: 11, fontWeight: '600' },
   tipCard:      { backgroundColor: '#082A18', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#22C97A33' },
   tipTitle:     { color: '#22C97A', fontSize: 13, fontWeight: '700', marginBottom: 6 },
   tipText:      { color: '#AAAABF', fontSize: 13, lineHeight: 20 },
+  tipArrow:     { color: '#22C97A', fontSize: 11, fontWeight: '600', marginTop: 10 },
 })
