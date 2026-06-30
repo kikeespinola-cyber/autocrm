@@ -48,16 +48,16 @@ export async function getClientsDueToday(): Promise<Client[]> {
 
 // Agregar un cliente nuevo
 export async function addClient(client: Partial<Client>): Promise<Client> {
+  const { data: { user } } = await supabase.auth.getUser()
   const { data, error } = await supabase
     .from('clients')
-    .insert(client)
+    .insert({ ...client, user_id: user?.id })
     .select()
     .single()
 
   if (error) throw error
   return data
 }
-
 // Actualizar temperatura
 export async function updateTemperature(id: string, temperature: string): Promise<void> {
   const { error } = await supabase
