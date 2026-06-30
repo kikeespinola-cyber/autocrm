@@ -22,23 +22,24 @@ export default function ClienteDetail() {
   const [mensajeIA, setMensajeIA]       = useState<string>('')
   const [cargandoIA, setCargandoIA]     = useState(false)
   const [copiado, setCopiado]           = useState(false)
+  const [ultimaAccion, setUltimaAccion] = useState<{ tipo: string; valorAnterior: any } | null>(null)
   const { formatDual } = useTipoCambio()
   const interactionsRef = React.useRef<Interaction[]>([])
 
   useEffect(() => { cargar() }, [id])
 
   async function cargar() {
-  const { data: c } = await supabase.from('clients').select('*').eq('id', id).single()
-  const { data: i } = await supabase.from('interactions').select('*').eq('client_id', id).order('created_at', { ascending: false })
-  if (i) {
-    interactionsRef.current = i
-    setInteractions(i)
+    const { data: c } = await supabase.from('clients').select('*').eq('id', id).single()
+    const { data: i } = await supabase.from('interactions').select('*').eq('client_id', id).order('created_at', { ascending: false })
+    if (i) {
+      interactionsRef.current = i
+      setInteractions(i)
+    }
+    if (c) {
+      setClient(c)
+      cargarSugerencia(c, i || [])
+    }
   }
-  if (c) {
-    setClient(c)
-    cargarSugerencia(c, i || [])
-  }
-}
 
   async function cargarSugerencia(c: Client, historial: any[]) {
     setCargandoIA(true)
@@ -65,9 +66,21 @@ export default function ClienteDetail() {
   }
 
   async function cambiarTemp(t: string) {
-  await supabase.from('clients').update({ temperature: t }).eq('id', id)
-  await cargar()
-}
+    const tempAnterior = client?.temperature
+    setUltimaAccion({ tipo: 'temperatura', valorAnterior: tempAnterior })
+    await supabase.from('clients').update({ temperature: t }).eq('id', id)
+    await cargar()
+    setTimeout(() => setUltimaAccion(null), 5000)
+  }
+
+  async function deshacer() {
+    if (!ultimaAccion) return
+    if (ultimaAccion.tipo === 'temperatura') {
+      await supabase.from('clients').update({ temperature: ultimaAccion.valorAnterior }).eq('id', id)
+      await cargar()
+    }
+    setUltimaAccion(null)
+  }
 
   async function marcarVendido() {
     const confirmar = typeof window !== 'undefined' ? window.confirm('¿Confirmás que se cerró esta venta?') : false
@@ -112,7 +125,6 @@ export default function ClienteDetail() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()}>
@@ -139,7 +151,15 @@ export default function ClienteDetail() {
         </View>
       </View>
 
-      {/* AI Strip */}
+      {ultimaAccion && (
+        <View style={styles.undoBar}>
+          <Text style={styles.undoText}>Temperatura actualizada</Text>
+          <TouchableOpacity onPress={deshacer}>
+            <Text style={styles.undoBtn}>Deshacer</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.iaStrip}>
         <Text style={styles.iaTitle}>✦ SUGERENCIA IA</Text>
         {cargandoIA ? (
@@ -161,7 +181,6 @@ export default function ClienteDetail() {
         )}
       </View>
 
-      {/* Quick actions */}
       <View style={styles.quickActions}>
         {[
           { icon:'📞', label:'Llamé',      color:T.green,  bg:T.greenDim, onPress: () => registrarContacto('call', 'Llamada realizada') },
@@ -176,7 +195,6 @@ export default function ClienteDetail() {
         ))}
       </View>
 
-      {/* Secondary actions */}
       <View style={styles.secondActions}>
         <TouchableOpacity style={styles.secBtn} onPress={abrirWhatsApp}>
           <Text style={[styles.secBtnText, { color: '#25D366' }]}>💬 Abrir WhatsApp</Text>
@@ -191,7 +209,6 @@ export default function ClienteDetail() {
         )}
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         {(['info','historial'] as const).map(t => (
           <TouchableOpacity key={t} onPress={() => setTab(t)} style={[styles.tabBtn, tab === t && styles.tabBtnActive]}>
@@ -202,11 +219,7 @@ export default function ClienteDetail() {
         ))}
       </View>
 
-      <ScrollView 
-        style={styles.scroll} 
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-        nestedScrollEnabled={true}
-      >
+      <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} nestedScrollEnabled={true}>
         {tab === 'info' && (
           <>
             <View style={styles.infoCard}>
@@ -312,6 +325,9 @@ const styles = StyleSheet.create({
   badgeText:          { fontSize: 11, fontWeight: '700' },
   docsTag:            { color: T.green, fontSize: 11, fontWeight: '700' },
   soldTag:            { color: T.green, fontSize: 11, fontWeight: '700' },
+  undoBar:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1A1A2E', paddingHorizontal: 16, paddingVertical: 10, margin: 12, borderRadius: 10 },
+  undoText:           { color: '#fff', fontSize: 12, fontWeight: '500' },
+  undoBtn:            { color: T.accent, fontSize: 12, fontWeight: '800' },
   iaStrip:            { margin: 12, backgroundColor: T.accentDim, borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: T.accent + '55' },
   iaTitle:            { color: T.accentText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
   iaText:             { color: T.accentText, fontSize: 13, lineHeight: 20 },

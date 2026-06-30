@@ -1,3 +1,4 @@
+import { mensajeError } from '../lib/errores'
 import { pedirPermisos, programarRecordatorioDiario } from '../lib/notificaciones'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
@@ -11,6 +12,7 @@ export default function HoyScreen() {
   const router = useRouter()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     cargar()
@@ -23,8 +25,9 @@ export default function HoyScreen() {
     try {
       const data = await getClients()
       setClients(data)
+      setError(null)
     } catch (e) {
-      console.error(e)
+      setError(mensajeError(e))
     } finally {
       setLoading(false)
     }
@@ -42,6 +45,17 @@ export default function HoyScreen() {
     !necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at)
   )
 
+if (error) {
+    return (
+      <View style={styles.loading}>
+        <Text style={{ fontSize: 32, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ color: T.text, fontSize: 15, fontWeight: '700', textAlign: 'center', paddingHorizontal: 30 }}>{error}</Text>
+        <TouchableOpacity onPress={cargar} style={{ marginTop: 16, backgroundColor: T.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
   if (loading) {
     return (
       <View style={styles.loading}>
