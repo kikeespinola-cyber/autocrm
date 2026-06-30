@@ -1,12 +1,26 @@
 import { Tabs } from 'expo-router'
-import { Text } from 'react-native'
+import { Text, View } from 'react-native'
 import { T } from '../lib/theme'
 
 export default function Layout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: T.white,
+          borderBottomWidth: 0.5,
+          borderBottomColor: T.border,
+        },
+        headerShadowVisible: false,
+        headerTitle: () => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>V</Text>
+            </View>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, letterSpacing: -0.3 }}>Vendix</Text>
+          </View>
+        ),
         tabBarStyle: {
           backgroundColor: T.navBg,
           borderTopColor: T.navBorder,
@@ -43,11 +57,11 @@ export default function Layout() {
       />
       <Tabs.Screen
         name="cliente/[id]"
-        options={{ href: null }}
+        options={{ href: null, headerShown: false }}
       />
       <Tabs.Screen
         name="cliente/editar/[id]"
-        options={{ href: null }}
+        options={{ href: null, headerShown: false }}
       />
     </Tabs>
   )

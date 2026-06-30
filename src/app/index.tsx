@@ -50,6 +50,7 @@ export default function HoyScreen() {
         {new Date().toLocaleDateString('es-PY', { weekday: 'long', day: 'numeric', month: 'long' })}
       </Text>
       <Text style={styles.titulo}>Tu día · {urgentes.length + masTarde.length} acciones</Text>
+      <Text style={styles.eslogan}>Tus leads, más personales que nunca.</Text>
 
       <View style={styles.statsRow}>
         {[
@@ -146,6 +147,7 @@ export default function HoyScreen() {
 }
 
 const styles = StyleSheet.create({
+  eslogan: { color: T.accent, fontSize: 11, fontWeight: '600', marginTop: -14, marginBottom: 20,    letterSpacing: 0.3 },
   container:    { flex: 1, backgroundColor: T.bg },
   content:      { padding: 20, paddingTop: 60, paddingBottom: 100 },
   loading:      { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
