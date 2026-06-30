@@ -57,6 +57,10 @@ export default function Layout() {
       <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👥</Text> }} />
       <Tabs.Screen name="pipeline" options={{ title: 'Pipeline', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>◈</Text> }} />
       <Tabs.Screen name="postventa" options={{ title: 'Post-venta', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤝</Text> }} />
+<Tabs.Screen
+  name="perfil"
+  options={{ title: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👤</Text> }}
+/>
       <Tabs.Screen name="metricas" options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />
       <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
