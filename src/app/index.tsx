@@ -1,3 +1,4 @@
+import { pedirPermisos, programarRecordatorioDiario } from '../lib/notificaciones'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useState, useEffect } from 'react'
@@ -11,7 +12,12 @@ export default function HoyScreen() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => {
+    cargar()
+    pedirPermisos().then(granted => {
+      if (granted) programarRecordatorioDiario()
+    })
+  }, [])
 
   async function cargar() {
     try {
