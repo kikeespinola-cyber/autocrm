@@ -3,15 +3,13 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useState, useEffect } from 'react'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
-
-const tempColor = (t: string) => t === 'hot' ? '#FF4444' : t === 'warm' ? '#F0A020' : '#4A8AE8'
-const tempDim   = (t: string) => t === 'hot' ? '#2A0808' : t === 'warm' ? '#2A1A00' : '#0A1428'
+import { T, tempColor, tempDim, tempTextColor } from '../lib/theme'
 
 const GRUPOS = [
-  { key: 'hot',  label: '🔴 Hot',      color: '#FF4444' },
-  { key: 'warm', label: '🟡 Warm',     color: '#F0A020' },
-  { key: 'cold', label: '🔵 Cold',     color: '#4A8AE8' },
-  { key: 'sold', label: '✅ Cerrados', color: '#22C97A' },
+  { key: 'hot',  label: '🔴 Hot',      color: '#EF4444' },
+  { key: 'warm', label: '🟡 Warm',     color: '#F59E0B' },
+  { key: 'cold', label: '🔵 Cold',     color: '#3B82F6' },
+  { key: 'sold', label: '✅ Cerrados', color: '#10B981' },
 ]
 
 export default function PipelineScreen() {
@@ -55,13 +53,16 @@ export default function PipelineScreen() {
                 <TouchableOpacity
                   key={g.key}
                   onPress={() => setActivo(g.key)}
-                  style={[styles.tab, { backgroundColor: isActive ? g.color : tempDim(g.key === 'sold' ? 'cold' : g.key), borderColor: g.color }]}
+                  style={[styles.tab, {
+                    backgroundColor: isActive ? g.color : T.white,
+                    borderColor: isActive ? g.color : T.border,
+                  }]}
                 >
-                  <Text style={[styles.tabText, { color: isActive ? '#fff' : g.color }]}>
+                  <Text style={[styles.tabText, { color: isActive ? '#fff' : T.muted }]}>
                     {g.label}
                   </Text>
-                  <View style={[styles.tabCount, { backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : '#252535' }]}>
-                    <Text style={[styles.tabCountText, { color: isActive ? '#fff' : '#55556A' }]}>{count}</Text>
+                  <View style={[styles.tabCount, { backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : T.bg }]}>
+                    <Text style={[styles.tabCountText, { color: isActive ? '#fff' : T.muted }]}>{count}</Text>
                   </View>
                 </TouchableOpacity>
               )
@@ -74,15 +75,15 @@ export default function PipelineScreen() {
             <Text style={styles.emptyText}>Sin clientes en esta categoría</Text>
           </View>
         ) : filtrados.map(c => (
-          <TouchableOpacity key={c.id} style={[styles.card, { borderColor: tempColor(c.temperature) + '44' }]} onPress={() => router.push(`/cliente/${c.id}`)}>
+          <TouchableOpacity key={c.id} style={styles.card} onPress={() => router.push(`/cliente/${c.id}`)}>
             <View style={styles.cardRow}>
-              <View style={[styles.avatar, { backgroundColor: '#7B3FE4' }]}>
+              <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
                 <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
               </View>
               <View style={styles.cardInfo}>
                 <Text style={styles.cardName}>{c.name}</Text>
                 <Text style={styles.cardVehicle}>{c.vehicle_interest || 'Sin vehículo'}</Text>
-                <Text style={styles.cardBudget}>{c.budget || ''}</Text>
+                {c.budget && <Text style={styles.cardBudget}>{c.budget}</Text>}
               </View>
               <View style={styles.actions}>
                 <Text style={styles.actionBtn}>📞</Text>
@@ -100,27 +101,27 @@ export default function PipelineScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: '#0A0A0F' },
+  container:    { flex: 1, backgroundColor: T.bg },
   content:      { padding: 20, paddingTop: 60, paddingBottom: 100 },
-  titulo:       { color: '#EEEEF5', fontSize: 22, fontWeight: '800' },
-  sub:          { color: '#55556A', fontSize: 12, marginTop: 4, marginBottom: 16 },
+  titulo:       { color: T.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  sub:          { color: T.muted, fontSize: 12, marginTop: 4, marginBottom: 16, fontWeight: '500' },
   tabsScroll:   { marginBottom: 16 },
   tabs:         { flexDirection: 'row', gap: 8 },
-  tab:          { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  tab:          { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 0.5 },
   tabText:      { fontSize: 12, fontWeight: '700' },
   tabCount:     { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
   tabCountText: { fontSize: 11, fontWeight: '700' },
-  card:         { backgroundColor: '#1A1A24', borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1 },
+  card:         { backgroundColor: T.white, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 0.5, borderColor: T.border },
   cardRow:      { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar:       { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   avatarText:   { color: '#fff', fontSize: 13, fontWeight: '800' },
   cardInfo:     { flex: 1 },
-  cardName:     { color: '#EEEEF5', fontSize: 14, fontWeight: '700' },
-  cardVehicle:  { color: '#AAAABF', fontSize: 12, marginTop: 2 },
-  cardBudget:   { color: '#F0A020', fontSize: 11, marginTop: 2, fontWeight: '600' },
+  cardName:     { color: T.text, fontSize: 14, fontWeight: '700' },
+  cardVehicle:  { color: T.textSub, fontSize: 12, marginTop: 2 },
+  cardBudget:   { color: T.accentText, fontSize: 11, marginTop: 2, fontWeight: '600' },
   actions:      { gap: 8 },
   actionBtn:    { fontSize: 20 },
-  docsTag:      { color: '#22C97A', fontSize: 11, fontWeight: '700', marginTop: 8 },
+  docsTag:      { color: T.green, fontSize: 11, fontWeight: '700', marginTop: 8 },
   empty:        { alignItems: 'center', marginTop: 60 },
-  emptyText:    { color: '#55556A', fontSize: 14 },
+  emptyText:    { color: T.muted, fontSize: 14 },
 })
