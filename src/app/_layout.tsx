@@ -1,17 +1,43 @@
-import { Tabs } from 'expo-router'
-import { Text, View } from 'react-native'
+import { Tabs, useRouter, useSegments } from 'expo-router'
+import { Text, View, useEffect } from 'react-native'
+import { useState, useEffect as useEffectReact } from 'react'
+import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 
 export default function Layout() {
+  const router = useRouter()
+  const segments = useSegments()
+  const [session, setSession] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffectReact(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setLoading(false)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffectReact(() => {
+    if (loading) return
+    const inLogin = segments[0] === 'login'
+    if (!session && !inLogin) {
+      router.replace('/login')
+    } else if (session && inLogin) {
+      router.replace('/')
+    }
+  }, [session, loading, segments])
+
+  if (loading) return null
+
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
-        headerStyle: {
-          backgroundColor: T.white,
-          borderBottomWidth: 0.5,
-          borderBottomColor: T.border,
-        },
+        headerStyle: { backgroundColor: T.white, borderBottomWidth: 0.5, borderBottomColor: T.border },
         headerShadowVisible: false,
         headerTitle: () => (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -21,48 +47,20 @@ export default function Layout() {
             <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, letterSpacing: -0.3 }}>Vendix</Text>
           </View>
         ),
-        tabBarStyle: {
-          backgroundColor: T.navBg,
-          borderTopColor: T.navBorder,
-          borderTopWidth: 0.5,
-          height: 60,
-        },
+        tabBarStyle: { backgroundColor: T.navBg, borderTopColor: T.navBorder, borderTopWidth: 0.5, height: 60 },
         tabBarActiveTintColor: T.accent,
         tabBarInactiveTintColor: T.muted,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-        },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Hoy', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>⚡</Text> }}
-      />
-      <Tabs.Screen
-        name="clientes"
-        options={{ title: 'Clientes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👥</Text> }}
-      />
-      <Tabs.Screen
-        name="pipeline"
-        options={{ title: 'Pipeline', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>◈</Text> }}
-      />
-      <Tabs.Screen
-        name="postventa"
-        options={{ title: 'Post-venta', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤝</Text> }}
-      />
-      <Tabs.Screen
-        name="metricas"
-        options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }}
-      />
-      <Tabs.Screen
-        name="cliente/[id]"
-        options={{ href: null, headerShown: false }}
-      />
-      <Tabs.Screen
-        name="cliente/editar/[id]"
-        options={{ href: null, headerShown: false }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Hoy', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>⚡</Text> }} />
+      <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👥</Text> }} />
+      <Tabs.Screen name="pipeline" options={{ title: 'Pipeline', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>◈</Text> }} />
+      <Tabs.Screen name="postventa" options={{ title: 'Post-venta', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤝</Text> }} />
+      <Tabs.Screen name="metricas" options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />
+      <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />
     </Tabs>
   )
 }
