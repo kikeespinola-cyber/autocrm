@@ -1,6 +1,6 @@
 import { Tabs, useRouter, useSegments } from 'expo-router'
-import { Text, View, useEffect } from 'react-native'
-import { useState, useEffect as useEffectReact } from 'react'
+import { Text, View } from 'react-native'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 
@@ -10,7 +10,7 @@ export default function Layout() {
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffectReact(() => {
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
@@ -21,7 +21,7 @@ export default function Layout() {
     return () => subscription.unsubscribe()
   }, [])
 
-  useEffectReact(() => {
+  useEffect(() => {
     if (loading) return
     const inLogin = segments[0] === 'login'
     if (!session && !inLogin) {
@@ -57,14 +57,12 @@ export default function Layout() {
       <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👥</Text> }} />
       <Tabs.Screen name="pipeline" options={{ title: 'Pipeline', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>◈</Text> }} />
       <Tabs.Screen name="postventa" options={{ title: 'Post-venta', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤝</Text> }} />
-<Tabs.Screen
-  name="perfil"
-  options={{ title: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👤</Text> }}
-/>
+      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👤</Text> }} />
       <Tabs.Screen name="metricas" options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />
       <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="admin" options={{ href: null, headerShown: true }} />
     </Tabs>
   )
 }

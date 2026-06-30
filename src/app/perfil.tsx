@@ -155,7 +155,13 @@ Generado por Vendix · ${new Date().toLocaleDateString('es-PY')}`
           <Text style={styles.exportSub}>Listo para pegar en WhatsApp o email</Text>
         </View>
       </TouchableOpacity>
-
+<TouchableOpacity style={[styles.exportBtn, { borderColor: T.purple + '44' }]} onPress={() => router.push('/admin')}>
+        <Text style={styles.exportIcon}>👑</Text>
+        <View>
+          <Text style={styles.exportTitle}>Panel de administrador</Text>
+          <Text style={styles.exportSub}>Gestionar usuarios y suscripciones</Text>
+        </View>
+      </TouchableOpacity>
       {/* Cerrar sesión */}
       <TouchableOpacity style={styles.logoutBtn} onPress={cerrarSesion}>
         <Text style={styles.logoutText}>Cerrar sesión</Text>
