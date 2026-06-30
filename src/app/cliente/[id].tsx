@@ -1,6 +1,6 @@
+import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useState, useEffect } from 'react'
 import { Client, Interaction } from '../../lib/types'
 import { supabase } from '../../lib/supabase'
 import { generarSugerencia } from '../../lib/ia'
@@ -23,15 +23,22 @@ export default function ClienteDetail() {
   const [cargandoIA, setCargandoIA]     = useState(false)
   const [copiado, setCopiado]           = useState(false)
   const { formatDual } = useTipoCambio()
+  const interactionsRef = React.useRef<Interaction[]>([])
 
   useEffect(() => { cargar() }, [id])
 
   async function cargar() {
-    const { data: c } = await supabase.from('clients').select('*').eq('id', id).single()
-    const { data: i } = await supabase.from('interactions').select('*').eq('client_id', id).order('created_at', { ascending: false })
-    if (c) { setClient(c); cargarSugerencia(c, i || []) }
-    if (i) setInteractions(i)
+  const { data: c } = await supabase.from('clients').select('*').eq('id', id).single()
+  const { data: i } = await supabase.from('interactions').select('*').eq('client_id', id).order('created_at', { ascending: false })
+  if (i) {
+    interactionsRef.current = i
+    setInteractions(i)
   }
+  if (c) {
+    setClient(c)
+    cargarSugerencia(c, i || [])
+  }
+}
 
   async function cargarSugerencia(c: Client, historial: any[]) {
     setCargandoIA(true)
@@ -44,6 +51,7 @@ export default function ClienteDetail() {
       setMensajeIA('')
     } finally {
       setCargandoIA(false)
+      setInteractions([...interactionsRef.current])
     }
   }
 
@@ -57,9 +65,9 @@ export default function ClienteDetail() {
   }
 
   async function cambiarTemp(t: string) {
-    await supabase.from('clients').update({ temperature: t }).eq('id', id)
-    setClient(prev => prev ? { ...prev, temperature: t as any } : prev)
-  }
+  await supabase.from('clients').update({ temperature: t }).eq('id', id)
+  await cargar()
+}
 
   async function marcarVendido() {
     const confirmar = typeof window !== 'undefined' ? window.confirm('¿Confirmás que se cerró esta venta?') : false
@@ -194,7 +202,11 @@ export default function ClienteDetail() {
         ))}
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView 
+        style={styles.scroll} 
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        nestedScrollEnabled={true}
+      >
         {tab === 'info' && (
           <>
             <View style={styles.infoCard}>
