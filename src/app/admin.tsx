@@ -22,34 +22,21 @@ export default function AdminScreen() {
   useEffect(() => { verificarAdmin() }, [])
 
   async function verificarAdmin() {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('is_admin')
-      .eq('user_id', user?.id)
-      .single()
-
-    if (sub?.is_admin) {
-      setEsAdmin(true)
-      cargarUsuarios()
-    } else {
-      setLoading(false)
-    }
+  const { data, error } = await supabase.rpc('es_admin')
+  
+  if (data === true) {
+    setEsAdmin(true)
+    cargarUsuarios()
+  } else {
+    setLoading(false)
   }
+}
 
   async function cargarUsuarios() {
-  const { data, error } = await supabase
-    .from('subscriptions')
-    .select('user_id, status, plan, current_period_end, is_admin')
-    .not('user_id', 'is', null)
-    .order('created_at', { ascending: false })
+  const { data, error } = await supabase.rpc('obtener_usuarios_con_email')
 
   if (data) {
-    const conEmails = data.map((s) => ({
-      ...s,
-      email: s.user_id ? s.user_id.slice(0, 8) + '...' : 'sin usuario'
-    }))
-    setUsuarios(conEmails as UsuarioConSub[])
+    setUsuarios(data as UsuarioConSub[])
   }
   setLoading(false)
 }
