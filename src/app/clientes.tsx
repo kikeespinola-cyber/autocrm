@@ -41,7 +41,15 @@ export default function ClientesScreen() {
 
   async function guardarCliente() {
     if (!nombre.trim()) {
-      Alert.alert('Error', 'El nombre es obligatorio')
+      Alert.alert('Falta el nombre', 'Ingresá el nombre del cliente para continuar.')
+      return
+    }
+    if (nombre.trim().length < 3) {
+      Alert.alert('Nombre muy corto', 'Ingresá el nombre completo del cliente.')
+      return
+    }
+    if (telefono.trim() && !/^[0-9\s\-+()]{6,15}$/.test(telefono.trim())) {
+      Alert.alert('Teléfono inválido', 'Revisá el formato del número de teléfono.')
       return
     }
     setGuardando(true)
@@ -60,7 +68,7 @@ export default function ClientesScreen() {
       setModal(false)
       await cargar()
     } catch (e) {
-      Alert.alert('Error', 'No se pudo guardar el cliente')
+      Alert.alert('No se pudo guardar', 'Intentá de nuevo en unos segundos. Si el problema persiste, verificá tu conexión.')
     } finally {
       setGuardando(false)
     }
