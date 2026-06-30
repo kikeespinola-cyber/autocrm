@@ -24,12 +24,31 @@ export default function Layout() {
   useEffect(() => {
     if (loading) return
     const inLogin = segments[0] === 'login'
+    const inOnboarding = segments[0] === 'onboarding'
+
     if (!session && !inLogin) {
       router.replace('/login')
-    } else if (session && inLogin) {
-      router.replace('/')
+    } else if (session) {
+      verificarOnboarding()
     }
   }, [session, loading, segments])
+
+  async function verificarOnboarding() {
+    const { data } = await supabase
+      .from('subscriptions')
+      .select('onboarding_completado')
+      .eq('user_id', session.user.id)
+      .single()
+
+    const inOnboarding = segments[0] === 'onboarding'
+    const inLogin = segments[0] === 'login'
+
+    if (data && !data.onboarding_completado && !inOnboarding) {
+      router.replace('/onboarding')
+    } else if (data?.onboarding_completado && inLogin) {
+      router.replace('/')
+    }
+  }
 
   if (loading) return null
 
@@ -60,6 +79,7 @@ export default function Layout() {
       <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👤</Text> }} />
       <Tabs.Screen name="metricas" options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />
       <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="admin" options={{ href: null, headerShown: true }} />
