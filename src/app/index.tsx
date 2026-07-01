@@ -1,8 +1,8 @@
 import { mensajeError } from '../lib/errores'
 import { pedirPermisos, programarRecordatorioDiario } from '../lib/notificaciones'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
-import { useState, useEffect } from 'react'
+import { useRouter, useFocusEffect } from 'expo-router'
+import React, { useState, useEffect } from 'react'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 import { necesitaContactoHoy, proximoContactoTexto } from '../lib/protocolo'
@@ -12,14 +12,19 @@ export default function HoyScreen() {
   const router = useRouter()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]     = useState<string | null>(null)
 
   useEffect(() => {
-    cargar()
     pedirPermisos().then(granted => {
       if (granted) programarRecordatorioDiario()
     })
   }, [])
+
+  useFocusEffect(
+    React.useCallback(() => {
+      cargar()
+    }, [])
+  )
 
   async function cargar() {
     try {
@@ -45,7 +50,7 @@ export default function HoyScreen() {
     !necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at)
   )
 
-if (error) {
+  if (error) {
     return (
       <View style={styles.loading}>
         <Text style={{ fontSize: 32, marginBottom: 12 }}>⚠️</Text>
@@ -56,6 +61,7 @@ if (error) {
       </View>
     )
   }
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -167,7 +173,7 @@ if (error) {
 }
 
 const styles = StyleSheet.create({
-  eslogan: { color: T.accent, fontSize: 11, fontWeight: '600', marginTop: -14, marginBottom: 20,    letterSpacing: 0.3 },
+  eslogan:      { color: T.accent, fontSize: 11, fontWeight: '600', marginTop: -14, marginBottom: 20, letterSpacing: 0.3 },
   container:    { flex: 1, backgroundColor: T.bg },
   content:      { padding: 20, paddingTop: 60, paddingBottom: 100 },
   loading:      { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },

@@ -123,6 +123,14 @@ export default function ClienteDetail() {
     </View>
   )
 
+  const etapaLabel: Record<string, string> = {
+    interesado: '👀 Interesado',
+    evaluando:  '🤔 Evaluando',
+    objecion:   '💬 Objeción',
+    documentos: '📄 Documentos',
+    cierre:     '🏆 Cierre',
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -144,6 +152,11 @@ export default function ClienteDetail() {
               <View style={[styles.badge, { backgroundColor: tempDim(client.temperature) }]}>
                 <Text style={[styles.badgeText, { color: tempTextColor(client.temperature) }]}>{tempLabel(client.temperature)}</Text>
               </View>
+              {client.etapa && (
+                <View style={[styles.badge, { backgroundColor: T.bg }]}>
+                  <Text style={[styles.badgeText, { color: T.textSub }]}>{etapaLabel[client.etapa]}</Text>
+                </View>
+              )}
               {client.docs_received && <Text style={styles.docsTag}>📄 Docs ✓</Text>}
               {client.sold && <Text style={styles.soldTag}>✅ Vendido</Text>}
             </View>
@@ -183,10 +196,10 @@ export default function ClienteDetail() {
 
       <View style={styles.quickActions}>
         {[
-          { icon:'📞', label:'Llamé',      color:T.green,  bg:T.greenDim, onPress: () => registrarContacto('call', 'Llamada realizada') },
+          { icon:'📞', label:'Llamé',      color:T.green,  bg:T.greenDim,  onPress: () => registrarContacto('call', 'Llamada realizada') },
           { icon:'💬', label:'WA enviado', color:T.accent, bg:T.accentDim, onPress: () => registrarContacto('whatsapp', 'WhatsApp enviado') },
-          { icon:'📵', label:'No atendió', color:T.red,    bg:T.redDim,   onPress: () => registrarContacto('call', 'Llamada — no contestó') },
-          { icon:'📝', label:'Nota',       color:T.blue,   bg:T.blueDim,  onPress: () => setModalNota(true) },
+          { icon:'📵', label:'No atendió', color:T.red,    bg:T.redDim,    onPress: () => registrarContacto('call', 'Llamada — no contestó') },
+          { icon:'📝', label:'Nota',       color:T.blue,   bg:T.blueDim,   onPress: () => setModalNota(true) },
         ].map(a => (
           <TouchableOpacity key={a.label} style={[styles.qaBtn, { backgroundColor: a.bg }]} onPress={a.onPress}>
             <Text style={styles.qaIcon}>{a.icon}</Text>
@@ -224,14 +237,16 @@ export default function ClienteDetail() {
           <>
             <View style={styles.infoCard}>
               {[
-                { label: 'Teléfono',    value: client.phone },
-                { label: 'Vehículo',    value: client.vehicle_interest },
-                { label: 'Presupuesto', value: formatDual(client.budget), accent: true },
-                { label: 'Trabajo',     value: client.job },
-                { label: 'Cumpleaños',  value: client.birthday },
-                { label: 'Club',        value: client.club },
-                { label: 'Notas',       value: client.notes },
-                { label: 'Contactos',   value: `${client.contact_count} realizados` },
+                { label: 'Teléfono',         value: client.phone },
+                { label: 'Vehículo',         value: client.vehicle_interest },
+                { label: 'Presupuesto',      value: formatDual(client.budget), accent: true },
+                { label: 'Trabajo',          value: client.job },
+                { label: 'Cumpleaños',       value: client.birthday },
+                { label: 'Club',             value: client.club },
+                { label: 'Etapa',            value: client.etapa ? etapaLabel[client.etapa] : null },
+                { label: 'Comentario clave', value: client.comentario_clave },
+                { label: 'Notas',            value: client.notes },
+                { label: 'Contactos',        value: `${client.contact_count} realizados` },
               ].filter(r => r.value).map((r, i, arr) => (
                 <View key={r.label} style={[styles.infoRow, i === arr.length-1 && { borderBottomWidth: 0 }]}>
                   <Text style={styles.infoLabel}>{r.label}</Text>
@@ -320,7 +335,7 @@ const styles = StyleSheet.create({
   avatar:             { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   avatarText:         { color: '#fff', fontSize: 18, fontWeight: '800' },
   clientName:         { color: T.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
-  badgeRow:           { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' },
+  badgeRow:           { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
   badge:              { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText:          { fontSize: 11, fontWeight: '700' },
   docsTag:            { color: T.green, fontSize: 11, fontWeight: '700' },
