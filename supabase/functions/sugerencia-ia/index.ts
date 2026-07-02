@@ -1,70 +1,94 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import Anthropic from 'npm:@anthropic-ai/sdk'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const anthropic = new Anthropic({
+  apiKey: Deno.env.get('ANTHROPIC_API_KEY'),
+})
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      },
+    })
   }
 
   try {
-    const { clientName, vehiculo, temperatura, contactCount, historial } = await req.json()
+    const body = await req.json()
+    const { nombre, vehiculo, temperatura, contactos, historial, promptPersonalizado } = body
 
-    const historialTexto = historial.length === 0
-      ? 'Sin contactos previos.'
-      : historial.map((h: any) => `- [${h.type}] ${h.content || ''}`).join('\n')
+    let prompt = promptPersonalizado
 
-    const prompt = `Sos un asistente experto en ventas de vehículos en Paraguay.
+    if (!prompt) {
+      const historialTexto = historial?.length > 0
+        ? historial.slice(0, 5).map((h: any) => `- ${h.type}: ${h.content}`).join('\n')
+        : 'Sin historial previo'
 
-Cliente: ${clientName}
-Vehículo de interés: ${vehiculo || 'no especificado'}
-Temperatura: ${temperatura}
-Contactos realizados: ${contactCount}
+      prompt = `Sos un asistente experto en ventas de vehículos en Paraguay.
 
-Historial:
+Cliente: ${nombre}
+Vehículo de interés: ${vehiculo || 'No especificado'}
+Temperatura del lead: ${temperatura}
+Número de contactos previos: ${contactos}
+Historial reciente:
 ${historialTexto}
 
-Respondé ÚNICAMENTE con este JSON sin ningún texto adicional, sin markdown, sin bloques de código:
-{"sugerencia":"una oración con la estrategia","mensaje":"mensaje completo para WhatsApp en tono natural"}`
+Basándote en esta información, generá:
+1. Una sugerencia estratégica breve (máximo 2 oraciones) sobre cómo abordar al cliente
+2. Un mensaje de WhatsApp natural y personalizado listo para enviar
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': Deno.env.get('ANTHROPIC_API_KEY') ?? '',
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 400,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-
-    const data = await response.json()
-    let texto = data.content?.[0]?.text || '{}'
-    
-    // Limpiar markdown si lo hay
-    texto = texto.replace(/```json/g, '').replace(/```/g, '').trim()
-
-    let parsed = { sugerencia: '', mensaje: '' }
-    try {
-      parsed = JSON.parse(texto)
-    } catch {
-      parsed.sugerencia = texto
-      parsed.mensaje = ''
+Respondé en formato JSON exacto:
+{
+  "sugerencia": "tu sugerencia estratégica aquí",
+  "mensaje": "el mensaje de WhatsApp aquí"
+}`
     }
 
-    return new Response(JSON.stringify(parsed), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
     })
+
+    const content = message.content[0].type === 'text' ? message.content[0].text : ''
+
+    // Si es prompt personalizado, devolver el texto directo
+    if (promptPersonalizado) {
+      return new Response(
+        JSON.stringify({ sugerencia: content, mensaje: content }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      )
+    }
+
+    // Si es sugerencia normal, parsear JSON
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { sugerencia: content, mensaje: '' }
+
+    return new Response(
+      JSON.stringify(parsed),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    )
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    )
   }
 })

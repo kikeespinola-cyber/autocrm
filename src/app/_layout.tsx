@@ -82,6 +82,7 @@ export default function Layout() {
       <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="anuncios" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="admin" options={{ href: null, headerShown: true }} />
     </Tabs>
   )

@@ -107,7 +107,14 @@ export default function PerfilScreen() {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.exportBtn, { borderColor: T.purple + '44' }]} onPress={() => router.push('/admin')}>
+<TouchableOpacity style={[styles.exportBtn, { borderColor: '#1877F244' }]} onPress={() => router.push('/anuncios')}>
+        <Text style={styles.exportIcon}>📢</Text>
+        <View>
+          <Text style={styles.exportTitle}>Generador de anuncios</Text>
+          <Text style={styles.exportSub}>Creá el texto para tu pauta en redes con IA</Text>
+        </View>
+      </TouchableOpacity>      
+<TouchableOpacity style={[styles.exportBtn, { borderColor: T.purple + '44' }]} onPress={() => router.push('/admin')}>
         <Text style={styles.exportIcon}>👑</Text>
         <View>
           <Text style={styles.exportTitle}>Panel de administrador</Text>
