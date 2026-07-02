@@ -74,10 +74,20 @@ export default function ClientesScreen() {
     }
   }
 
-  const filtrados = clients.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.vehicle_interest || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filtrados = clients.filter(c => {
+    const q = search.toLowerCase()
+    if (!q) return true
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.vehicle_interest || '').toLowerCase().includes(q) ||
+      (c.phone || '').includes(q) ||
+      (c.job || '').toLowerCase().includes(q) ||
+      (c.club || '').toLowerCase().includes(q) ||
+      (c.comentario_clave || '').toLowerCase().includes(q) ||
+      (c.etapa || '').toLowerCase().includes(q) ||
+      (c.budget || '').toLowerCase().includes(q)
+    )
+  })
 
   return (
     <View style={styles.container}>
@@ -88,11 +98,16 @@ export default function ClientesScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar por nombre o vehículo..."
+            placeholder="Buscar por nombre, vehículo, teléfono..."
             placeholderTextColor={T.muted}
             value={search}
             onChangeText={setSearch}
           />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Text style={{ fontSize: 16, color: T.muted, paddingLeft: 8 }}>✕</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {filtrados.map(c => (
