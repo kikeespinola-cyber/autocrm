@@ -7,6 +7,7 @@ import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 import { necesitaContactoHoy, proximoContactoTexto } from '../lib/protocolo'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../lib/theme'
+import { supabase } from '../lib/supabase'
 
 export default function HoyScreen() {
   const router = useRouter()
@@ -36,6 +37,16 @@ export default function HoyScreen() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function registrarRapido(clientId: string, type: string, content: string) {
+    const cliente = clients.find(c => c.id === clientId)
+    await supabase.from('interactions').insert({ client_id: clientId, type, content })
+    await supabase.from('clients').update({
+      last_contact_at: new Date().toISOString(),
+      contact_count: (cliente?.contact_count || 0) + 1
+    }).eq('id', clientId)
+    await cargar()
   }
 
   const activos  = clients.filter(c => !c.sold)
@@ -95,23 +106,39 @@ export default function HoyScreen() {
         <>
           <Text style={styles.sectionLabel}>AHORA MISMO</Text>
           {urgentes.map(c => (
-            <TouchableOpacity key={c.id} style={[styles.card, { borderLeftWidth: 3, borderLeftColor: T.red }]} onPress={() => router.push(`/cliente/${c.id}`)}>
-              <View style={styles.cardRow}>
-                <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
-                  <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
+            <View key={c.id} style={[styles.card, { borderLeftWidth: 3, borderLeftColor: T.red }]}>
+              <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)}>
+                <View style={styles.cardRow}>
+                  <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
+                    <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardName}>{c.name}</Text>
+                    <Text style={[styles.cardAccion, { color: T.red }]}>
+                      {c.contact_count === 0 ? 'Primer contacto pendiente' : `Contacto #${c.contact_count + 1} — toca hoy`}
+                    </Text>
+                    <Text style={styles.cardVehicle}>{c.vehicle_interest}</Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
+                    <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>{tempLabel(c.temperature)}</Text>
+                  </View>
                 </View>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardName}>{c.name}</Text>
-                  <Text style={[styles.cardAccion, { color: T.red }]}>
-                    {c.contact_count === 0 ? 'Primer contacto pendiente' : `Contacto #${c.contact_count + 1} — toca hoy`}
-                  </Text>
-                  <Text style={styles.cardVehicle}>{c.vehicle_interest}</Text>
-                </View>
-                <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
-                  <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>{tempLabel(c.temperature)}</Text>
-                </View>
+              </TouchableOpacity>
+              <View style={styles.quickBtns}>
+                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.greenDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada realizada')}>
+                  <Text style={styles.quickBtnIcon}>📞</Text>
+                  <Text style={[styles.quickBtnText, { color: T.green }]}>Llamé</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.accentDim }]} onPress={() => registrarRapido(c.id, 'whatsapp', 'WhatsApp enviado')}>
+                  <Text style={styles.quickBtnIcon}>💬</Text>
+                  <Text style={[styles.quickBtnText, { color: T.accentText }]}>WhatsApp</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.redDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada — no contestó')}>
+                  <Text style={styles.quickBtnIcon}>📵</Text>
+                  <Text style={[styles.quickBtnText, { color: T.red }]}>No atendió</Text>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
+            </View>
           ))}
         </>
       )}
@@ -120,20 +147,36 @@ export default function HoyScreen() {
         <>
           <Text style={styles.sectionLabel}>MÁS TARDE HOY</Text>
           {masTarde.map(c => (
-            <TouchableOpacity key={c.id} style={styles.card} onPress={() => router.push(`/cliente/${c.id}`)}>
-              <View style={styles.cardRow}>
-                <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
-                  <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
+            <View key={c.id} style={styles.card}>
+              <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)}>
+                <View style={styles.cardRow}>
+                  <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
+                    <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardName}>{c.name}</Text>
+                    <Text style={styles.cardAccion}>{c.vehicle_interest}</Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
+                    <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>{tempLabel(c.temperature)}</Text>
+                  </View>
                 </View>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardName}>{c.name}</Text>
-                  <Text style={styles.cardAccion}>{c.vehicle_interest}</Text>
-                </View>
-                <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
-                  <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>{tempLabel(c.temperature)}</Text>
-                </View>
+              </TouchableOpacity>
+              <View style={styles.quickBtns}>
+                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.greenDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada realizada')}>
+                  <Text style={styles.quickBtnIcon}>📞</Text>
+                  <Text style={[styles.quickBtnText, { color: T.green }]}>Llamé</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.accentDim }]} onPress={() => registrarRapido(c.id, 'whatsapp', 'WhatsApp enviado')}>
+                  <Text style={styles.quickBtnIcon}>💬</Text>
+                  <Text style={[styles.quickBtnText, { color: T.accentText }]}>WhatsApp</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.redDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada — no contestó')}>
+                  <Text style={styles.quickBtnIcon}>📵</Text>
+                  <Text style={[styles.quickBtnText, { color: T.red }]}>No atendió</Text>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
+            </View>
           ))}
         </>
       )}
@@ -194,6 +237,10 @@ const styles = StyleSheet.create({
   cardVehicle:  { color: T.muted, fontSize: 11, marginTop: 2 },
   badge:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText:    { fontSize: 11, fontWeight: '700' },
+  quickBtns:    { flexDirection: 'row', gap: 8, marginTop: 10 },
+  quickBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, padding: 8, borderRadius: 10 },
+  quickBtnIcon: { fontSize: 14 },
+  quickBtnText: { fontSize: 11, fontWeight: '700' },
   empty:        { alignItems: 'center', marginTop: 60 },
   emptyText:    { color: T.text, fontSize: 16, fontWeight: '700' },
   emptySub:     { color: T.muted, fontSize: 13, marginTop: 8 },
