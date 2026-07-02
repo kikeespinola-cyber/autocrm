@@ -9,6 +9,22 @@ import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../../lib/theme
 
 const iconFor = (t: string) => ({ call:'📞', whatsapp:'💬', visit:'🏢', note:'📝', lead:'🌐', sale:'✅' }[t] || '📝')
 
+const etapaLabel: Record<string, string> = {
+  interesado: '👀 Interesado',
+  evaluando:  '🤔 Evaluando',
+  objecion:   '💬 Objeción',
+  documentos: '📄 Documentos',
+  cierre:     '🏆 Cierre',
+}
+
+const origenLabel: Record<string, string> = {
+  salon:      '🏢 Salón',
+  red_social: '📱 Red social',
+  referido:   '🤝 Referido',
+  pauta:      '📢 Pauta',
+  otro:       '✦ Otro',
+}
+
 export default function ClienteDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
@@ -123,14 +139,6 @@ export default function ClienteDetail() {
     </View>
   )
 
-  const etapaLabel: Record<string, string> = {
-    interesado: '👀 Interesado',
-    evaluando:  '🤔 Evaluando',
-    objecion:   '💬 Objeción',
-    documentos: '📄 Documentos',
-    cierre:     '🏆 Cierre',
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -244,6 +252,7 @@ export default function ClienteDetail() {
                 { label: 'Cumpleaños',       value: client.birthday },
                 { label: 'Club',             value: client.club },
                 { label: 'Etapa',            value: client.etapa ? etapaLabel[client.etapa] : null },
+                { label: 'Origen',           value: client.origen ? origenLabel[client.origen] : null },
                 { label: 'Comentario clave', value: client.comentario_clave },
                 { label: 'Notas',            value: client.notes },
                 { label: 'Contactos',        value: `${client.contact_count} realizados` },

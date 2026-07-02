@@ -1,9 +1,17 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useState, useEffect } from 'react'
-import { Client } from '../lib/types'
+import { Client, Origen } from '../lib/types'
 import { getClients, addClient } from '../lib/clientesService'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../lib/theme'
+
+const ORIGENES: { key: Origen; label: string; color: string }[] = [
+  { key: 'salon',      label: '🏢 Salón',      color: T.blue },
+  { key: 'red_social', label: '📱 Red social', color: T.purple },
+  { key: 'referido',   label: '🤝 Referido',   color: T.green },
+  { key: 'pauta',      label: '📢 Pauta',      color: T.warm },
+  { key: 'otro',       label: '✦ Otro',        color: T.muted },
+]
 
 export default function ClientesScreen() {
   const router = useRouter()
@@ -19,6 +27,7 @@ export default function ClientesScreen() {
   const [cumple, setCumple]           = useState('')
   const [club, setClub]               = useState('')
   const [temp, setTemp]               = useState<'hot'|'warm'|'cold'>('warm')
+  const [origen, setOrigen]           = useState<Origen | null>(null)
   const [guardando, setGuardando]     = useState(false)
 
   useEffect(() => { cargar() }, [])
@@ -36,7 +45,7 @@ export default function ClientesScreen() {
 
   function limpiarForm() {
     setNombre(''); setTelefono(''); setVehiculo(''); setPresupuesto('')
-    setTrabajo(''); setCumple(''); setClub(''); setTemp('warm')
+    setTrabajo(''); setCumple(''); setClub(''); setTemp('warm'); setOrigen(null)
   }
 
   async function guardarCliente() {
@@ -63,12 +72,13 @@ export default function ClientesScreen() {
         birthday: cumple.trim() || null,
         club: club.trim() || null,
         temperature: temp,
+        origen: origen || null,
       })
       limpiarForm()
       setModal(false)
       await cargar()
     } catch (e) {
-      Alert.alert('No se pudo guardar', 'Intentá de nuevo en unos segundos. Si el problema persiste, verificá tu conexión.')
+      Alert.alert('No se pudo guardar', 'Intentá de nuevo en unos segundos.')
     } finally {
       setGuardando(false)
     }
@@ -85,9 +95,18 @@ export default function ClientesScreen() {
       (c.club || '').toLowerCase().includes(q) ||
       (c.comentario_clave || '').toLowerCase().includes(q) ||
       (c.etapa || '').toLowerCase().includes(q) ||
+      (c.origen || '').toLowerCase().includes(q) ||
       (c.budget || '').toLowerCase().includes(q)
     )
   })
+
+  const origenLabel: Record<Origen, string> = {
+    salon:      '🏢 Salón',
+    red_social: '📱 Red social',
+    referido:   '🤝 Referido',
+    pauta:      '📢 Pauta',
+    otro:       '✦ Otro',
+  }
 
   return (
     <View style={styles.container}>
@@ -120,7 +139,7 @@ export default function ClientesScreen() {
                 <Text style={styles.cardName}>{c.name}</Text>
                 <Text style={styles.cardVehicle}>{c.vehicle_interest || 'Sin vehículo asignado'}</Text>
                 {c.budget && <Text style={styles.cardBudget}>{c.budget}</Text>}
-                {c.job && <Text style={styles.cardJob}>💼 {c.job}</Text>}
+                {c.origen && <Text style={styles.cardOrigen}>{origenLabel[c.origen]}</Text>}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
@@ -171,6 +190,25 @@ export default function ClientesScreen() {
                 </View>
               ))}
 
+              <Text style={styles.inputLabel}>Origen del lead</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                {ORIGENES.map(o => (
+                  <TouchableOpacity
+                    key={o.key}
+                    onPress={() => setOrigen(origen === o.key ? null : o.key)}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+                      backgroundColor: origen === o.key ? o.color : T.bg,
+                      borderWidth: 1, borderColor: o.color + '80',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: origen === o.key ? '#fff' : o.color }}>
+                      {o.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <Text style={styles.inputLabel}>Temperatura</Text>
               <View style={styles.tempRow}>
                 {(['hot','warm','cold'] as const).map(t => (
@@ -217,7 +255,7 @@ const styles = StyleSheet.create({
   cardName:        { color: T.text, fontSize: 14, fontWeight: '700' },
   cardVehicle:     { color: T.textSub, fontSize: 12, marginTop: 2 },
   cardBudget:      { color: T.accentText, fontSize: 11, marginTop: 2, fontWeight: '600' },
-  cardJob:         { color: T.muted, fontSize: 11, marginTop: 2 },
+  cardOrigen:      { color: T.muted, fontSize: 11, marginTop: 2 },
   badge:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText:       { fontSize: 11, fontWeight: '700' },
   docsTag:         { color: T.green, fontSize: 10, fontWeight: '700' },

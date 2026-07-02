@@ -3,23 +3,40 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../../../lib/theme'
-import { Etapa } from '../../../lib/types'
+import { Etapa, Origen } from '../../../lib/types'
+
+const ETAPAS: { key: Etapa; label: string; color: string }[] = [
+  { key: 'interesado', label: '👀 Interesado', color: T.blue },
+  { key: 'evaluando',  label: '🤔 Evaluando',  color: T.warm },
+  { key: 'objecion',   label: '💬 Objeción',   color: T.red },
+  { key: 'documentos', label: '📄 Documentos', color: T.accent },
+  { key: 'cierre',     label: '🏆 Cierre',     color: T.green },
+]
+
+const ORIGENES: { key: Origen; label: string; color: string }[] = [
+  { key: 'salon',      label: '🏢 Salón',      color: T.blue },
+  { key: 'red_social', label: '📱 Red social', color: T.purple },
+  { key: 'referido',   label: '🤝 Referido',   color: T.green },
+  { key: 'pauta',      label: '📢 Pauta',      color: T.warm },
+  { key: 'otro',       label: '✦ Otro',        color: T.muted },
+]
 
 export default function EditarCliente() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-  const [guardando, setGuardando]               = useState(false)
-  const [nombre, setNombre]                     = useState('')
-  const [telefono, setTelefono]                 = useState('')
-  const [vehiculo, setVehiculo]                 = useState('')
-  const [presupuesto, setPresupuesto]           = useState('')
-  const [trabajo, setTrabajo]                   = useState('')
-  const [cumple, setCumple]                     = useState('')
-  const [club, setClub]                         = useState('')
-  const [notas, setNotas]                       = useState('')
-  const [temp, setTemp]                         = useState<'hot'|'warm'|'cold'>('warm')
-  const [comentarioClave, setComentarioClave]   = useState('')
-  const [etapa, setEtapa]                       = useState<Etapa | null>(null)
+  const [guardando, setGuardando]             = useState(false)
+  const [nombre, setNombre]                   = useState('')
+  const [telefono, setTelefono]               = useState('')
+  const [vehiculo, setVehiculo]               = useState('')
+  const [presupuesto, setPresupuesto]         = useState('')
+  const [trabajo, setTrabajo]                 = useState('')
+  const [cumple, setCumple]                   = useState('')
+  const [club, setClub]                       = useState('')
+  const [notas, setNotas]                     = useState('')
+  const [temp, setTemp]                       = useState<'hot'|'warm'|'cold'>('warm')
+  const [comentarioClave, setComentarioClave] = useState('')
+  const [etapa, setEtapa]                     = useState<Etapa | null>(null)
+  const [origen, setOrigen]                   = useState<Origen | null>(null)
 
   useEffect(() => { cargar() }, [id])
 
@@ -37,6 +54,7 @@ export default function EditarCliente() {
       setTemp(data.temperature || 'warm')
       setComentarioClave(data.comentario_clave || '')
       setEtapa(data.etapa || null)
+      setOrigen(data.origen || null)
     }
   }
 
@@ -59,6 +77,7 @@ export default function EditarCliente() {
         temperature: temp,
         comentario_clave: comentarioClave.trim() || null,
         etapa: etapa || null,
+        origen: origen || null,
       }).eq('id', id)
       router.back()
     } catch (e) {
@@ -67,14 +86,6 @@ export default function EditarCliente() {
       setGuardando(false)
     }
   }
-
-  const etapas: { key: Etapa; label: string; color: string }[] = [
-    { key: 'interesado', label: '👀 Interesado', color: T.blue },
-    { key: 'evaluando',  label: '🤔 Evaluando',  color: T.warm },
-    { key: 'objecion',   label: '💬 Objeción',   color: T.red },
-    { key: 'documentos', label: '📄 Documentos', color: T.accent },
-    { key: 'cierre',     label: '🏆 Cierre',     color: T.green },
-  ]
 
   return (
     <View style={styles.container}>
@@ -130,9 +141,28 @@ export default function EditarCliente() {
           multiline
         />
 
+        <Text style={styles.inputLabel}>Origen del lead</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, marginBottom: 8 }}>
+          {ORIGENES.map(o => (
+            <TouchableOpacity
+              key={o.key}
+              onPress={() => setOrigen(origen === o.key ? null : o.key)}
+              style={{
+                paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+                backgroundColor: origen === o.key ? o.color : T.bg,
+                borderWidth: 1, borderColor: o.color + '80',
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: origen === o.key ? '#fff' : o.color }}>
+                {o.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <Text style={styles.inputLabel}>Etapa de compra</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, marginBottom: 16 }}>
-          {etapas.map(e => (
+          {ETAPAS.map(e => (
             <TouchableOpacity
               key={e.key}
               onPress={() => setEtapa(etapa === e.key ? null : e.key)}

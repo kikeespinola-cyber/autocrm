@@ -2,6 +2,7 @@ export type Temperature = 'hot' | 'warm' | 'cold'
 export type InteractionType = 'call' | 'whatsapp' | 'visit' | 'note' | 'lead' | 'sale'
 export type ReminderType = 'follow_up' | 'birthday' | 'maintenance' | 'event' | 'referral'
 export type Etapa = 'interesado' | 'evaluando' | 'objecion' | 'documentos' | 'cierre'
+export type Origen = 'salon' | 'red_social' | 'referido' | 'pauta' | 'otro'
 
 export interface Client {
   id: string
@@ -27,6 +28,7 @@ export interface Client {
   updated_at: string
   comentario_clave?: string | null
   etapa?: Etapa | null
+  origen?: Origen | null
 }
 
 export interface Interaction {
