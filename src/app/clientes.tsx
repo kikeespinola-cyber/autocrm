@@ -141,7 +141,7 @@ export default function ClientesScreen() {
                 { label:'Vehículo de interés', value:vehiculo,    set:setVehiculo,    placeholder:'Ej: Toyota Hilux 2024' },
                 { label:'Presupuesto',         value:presupuesto, set:setPresupuesto, placeholder:'Ej: 180.000.000' },
                 { label:'Trabajo / Rubro',     value:trabajo,     set:setTrabajo,     placeholder:'Ej: Transportista' },
-                { label:'Cumpleaños',          value:cumple,      set:setCumple,      placeholder:'Ej: 14 Jul' },
+                { label:'Cumpleaños',          value:cumple,      set:setCumple,      placeholder:'Ej: 01/07' },
                 { label:'Club de fútbol',      value:club,        set:setClub,        placeholder:'Ej: Olimpia' },
               ].map(f => (
                 <View key={f.label}>

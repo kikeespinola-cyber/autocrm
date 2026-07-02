@@ -49,6 +49,7 @@ export default function HoyScreen() {
     await cargar()
   }
 
+  const hoy      = new Date()
   const activos  = clients.filter(c => !c.sold)
   const cerrados = clients.filter(c => c.sold)
   const urgentes = activos.filter(c =>
@@ -60,6 +61,14 @@ export default function HoyScreen() {
   const proximos = activos.filter(c =>
     !necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at)
   )
+  const cumpleHoy = clients.filter(c => {
+    if (!c.birthday) return false
+    const partes = c.birthday.split('/')
+    if (partes.length !== 2) return false
+    const dia = parseInt(partes[0])
+    const mes = parseInt(partes[1])
+    return dia === hoy.getDate() && mes === hoy.getMonth() + 1
+  })
 
   if (error) {
     return (
@@ -101,6 +110,40 @@ export default function HoyScreen() {
           </View>
         ))}
       </View>
+
+      {cumpleHoy.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>🎂 CUMPLEAÑOS HOY</Text>
+          {cumpleHoy.map(c => (
+            <View key={c.id} style={[styles.card, { borderLeftWidth: 3, borderLeftColor: T.warm }]}>
+              <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)}>
+                <View style={styles.cardRow}>
+                  <View style={[styles.avatar, { backgroundColor: T.warm }]}>
+                    <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardName}>{c.name}</Text>
+                    <Text style={[styles.cardAccion, { color: T.warm }]}>🎂 Hoy es su cumpleaños</Text>
+                    <Text style={styles.cardVehicle}>{c.vehicle_interest}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickBtn, { backgroundColor: T.warmDim, marginTop: 10, flex: 0, paddingHorizontal: 16 }]}
+                onPress={() => {
+                  const msg = `¡Hola ${c.name.split(' ')[0]}! Te escribo para desearte un feliz cumpleaños 🎉 Que lo pases genial. Un saludo de parte mía.`
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText(msg)
+                  }
+                }}
+              >
+                <Text style={styles.quickBtnIcon}>💬</Text>
+                <Text style={[styles.quickBtnText, { color: T.warmText }]}>Copiar saludo</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </>
+      )}
 
       {urgentes.length > 0 && (
         <>

@@ -95,7 +95,7 @@ export default function EditarCliente() {
           { label:'Vehículo de interés', value:vehiculo,    set:setVehiculo,    placeholder:'Toyota Hilux 2024' },
           { label:'Presupuesto',         value:presupuesto, set:setPresupuesto, placeholder:'180.000.000' },
           { label:'Trabajo / Rubro',     value:trabajo,     set:setTrabajo,     placeholder:'Transportista...' },
-          { label:'Cumpleaños',          value:cumple,      set:setCumple,      placeholder:'14 Jul' },
+          { label:'Cumpleaños',          value:cumple,      set:setCumple,      placeholder:'01/07' },
           { label:'Club de fútbol',      value:club,        set:setClub,        placeholder:'Olimpia, Cerro...' },
         ].map(f => (
           <View key={f.label}>
