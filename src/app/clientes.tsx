@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native'
-import { useRouter } from 'expo-router'
-import { useState, useEffect } from 'react'
+import { useRouter, useFocusEffect } from 'expo-router'
+import React, { useState } from 'react'
 import { Client, Origen } from '../lib/types'
 import { getClients, addClient } from '../lib/clientesService'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../lib/theme'
+import Tooltip from '../components/Tooltip'
+import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
 
 const ORIGENES: { key: Origen; label: string; color: string }[] = [
   { key: 'salon',      label: '🏢 Salón',      color: T.blue },
@@ -29,8 +31,16 @@ export default function ClientesScreen() {
   const [temp, setTemp]               = useState<'hot'|'warm'|'cold'>('warm')
   const [origen, setOrigen]           = useState<Origen | null>(null)
   const [guardando, setGuardando]     = useState(false)
+  const [mostrarTooltip, setMostrarTooltip] = useState(false)
 
-  useEffect(() => { cargar() }, [])
+  useFocusEffect(
+    React.useCallback(() => {
+      cargar()
+      tooltipVisto('clientes').then(visto => {
+        if (!visto) setMostrarTooltip(true)
+      })
+    }, [])
+  )
 
   async function cargar() {
     try {
@@ -162,6 +172,13 @@ export default function ClientesScreen() {
       <TouchableOpacity style={styles.fab} onPress={() => setModal(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      <Tooltip
+        visible={mostrarTooltip}
+        titulo="👥 Clientes"
+        descripcion="Acá están todos tus leads. Tocá el + para agregar uno nuevo. Podés buscar por nombre, teléfono, vehículo o etapa. Tocá cualquier cliente para ver su ficha completa."
+        onCerrar={() => { setMostrarTooltip(false); marcarTooltipVisto('clientes') }}
+      />
 
       <Modal visible={modal} animationType='slide' transparent>
         <View style={styles.modalOverlay}>

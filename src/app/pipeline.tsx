@@ -1,9 +1,11 @@
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
-import { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 import { T } from '../lib/theme'
+import Tooltip from '../components/Tooltip'
+import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
 
 const GRUPOS_TEMP = [
   { key: 'hot',  label: '🔴 Hot',      color: '#EF4444' },
@@ -23,12 +25,20 @@ const GRUPOS_ETAPA = [
 export default function PipelineScreen() {
   const router = useRouter()
   const params = useLocalSearchParams<{ filter?: string }>()
-  const [clients, setClients]       = useState<Client[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [activo, setActivo]         = useState(params.filter || 'hot')
-  const [modoFiltro, setModoFiltro] = useState<'temperatura'|'etapa'>('temperatura')
+  const [clients, setClients]           = useState<Client[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [activo, setActivo]             = useState(params.filter || 'hot')
+  const [modoFiltro, setModoFiltro]     = useState<'temperatura'|'etapa'>('temperatura')
+  const [mostrarTooltip, setMostrarTooltip] = useState(false)
 
-  useEffect(() => { cargar() }, [])
+  useFocusEffect(
+    React.useCallback(() => {
+      cargar()
+      tooltipVisto('pipeline').then(visto => {
+        if (!visto) setMostrarTooltip(true)
+      })
+    }, [])
+  )
 
   async function cargar() {
     try {
@@ -55,7 +65,6 @@ export default function PipelineScreen() {
         <Text style={styles.titulo}>Pipeline</Text>
         <Text style={styles.sub}>{clients.filter(c => !c.sold).length} activos · {clients.filter(c => c.sold).length} cerrados</Text>
 
-        {/* Selector de modo */}
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
           {[
             { key: 'temperatura', label: '🌡 Temperatura' },
@@ -80,7 +89,6 @@ export default function PipelineScreen() {
           ))}
         </View>
 
-        {/* Tabs dinámicas */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
           <View style={styles.tabs}>
             {(modoFiltro === 'temperatura' ? GRUPOS_TEMP : GRUPOS_ETAPA).map(g => {
@@ -127,13 +135,7 @@ export default function PipelineScreen() {
                 {c.budget && <Text style={styles.cardBudget}>{c.budget}</Text>}
                 {c.etapa && (
                   <Text style={styles.cardEtapa}>
-                    {{
-                      interesado: '👀 Interesado',
-                      evaluando:  '🤔 Evaluando',
-                      objecion:   '💬 Objeción',
-                      documentos: '📄 Documentos',
-                      cierre:     '🏆 Cierre',
-                    }[c.etapa]}
+                    {{ interesado:'👀 Interesado', evaluando:'🤔 Evaluando', objecion:'💬 Objeción', documentos:'📄 Documentos', cierre:'🏆 Cierre' }[c.etapa]}
                   </Text>
                 )}
               </View>
@@ -142,12 +144,17 @@ export default function PipelineScreen() {
                 <Text style={styles.actionBtn}>💬</Text>
               </View>
             </View>
-            {c.docs_received && (
-              <Text style={styles.docsTag}>📄 Documentos recibidos</Text>
-            )}
+            {c.docs_received && <Text style={styles.docsTag}>📄 Documentos recibidos</Text>}
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      <Tooltip
+        visible={mostrarTooltip}
+        titulo="◈ Pipeline"
+        descripcion="Tu embudo de ventas. Filtrá por temperatura (Hot/Warm/Cold) o por etapa de compra. Hot = acción urgente, Warm = seguimiento activo, Cold = reactivar. La temperatura cambia sola según el tiempo sin contacto."
+        onCerrar={() => { setMostrarTooltip(false); marcarTooltipVisto('pipeline') }}
+      />
     </View>
   )
 }

@@ -1,15 +1,25 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
-import { useState, useEffect } from 'react'
-import { useRouter } from 'expo-router'
+import React, { useState } from 'react'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 import { T } from '../lib/theme'
+import Tooltip from '../components/Tooltip'
+import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
 
 export default function MetricasScreen() {
   const router = useRouter()
-  const [clients, setClients] = useState<Client[]>([])
+  const [clients, setClients]               = useState<Client[]>([])
+  const [mostrarTooltip, setMostrarTooltip] = useState(false)
 
-  useEffect(() => { cargar() }, [])
+  useFocusEffect(
+    React.useCallback(() => {
+      cargar()
+      tooltipVisto('metricas').then(visto => {
+        if (!visto) setMostrarTooltip(true)
+      })
+    }, [])
+  )
 
   async function cargar() {
     try {
@@ -33,7 +43,6 @@ export default function MetricasScreen() {
       <Text style={styles.titulo}>Métricas</Text>
       <Text style={styles.sub}>Tu rendimiento de ventas</Text>
 
-      {/* Tasa de cierre */}
       <View style={styles.mainCard}>
         <Text style={styles.mainNum}>{tasaCierre}%</Text>
         <Text style={styles.mainLabel}>Tasa de cierre</Text>
@@ -43,7 +52,6 @@ export default function MetricasScreen() {
         <Text style={styles.mainSub}>{vendidos} vendidos de {total} totales</Text>
       </View>
 
-      {/* Embudo */}
       <Text style={styles.sectionLabel}>EMBUDO</Text>
       <View style={styles.grid}>
         {[
@@ -64,7 +72,6 @@ export default function MetricasScreen() {
         ))}
       </View>
 
-      {/* Documentación */}
       <Text style={styles.sectionLabel}>DOCUMENTACIÓN</Text>
       <View style={styles.docsCard}>
         <TouchableOpacity style={styles.docsRow} onPress={() => router.push('/clientes?filter=docs')}>
@@ -83,7 +90,6 @@ export default function MetricasScreen() {
         </View>
       </View>
 
-      {/* Foco */}
       <TouchableOpacity style={styles.tipCard} onPress={() => router.push('/')}>
         <Text style={styles.tipTitle}>💡 Foco de hoy</Text>
         <Text style={styles.tipText}>
@@ -95,6 +101,13 @@ export default function MetricasScreen() {
         </Text>
         <Text style={styles.tipArrow}>Ver Tu Día →</Text>
       </TouchableOpacity>
+
+      <Tooltip
+        visible={mostrarTooltip}
+        titulo="📊 Métricas"
+        descripcion="Tu rendimiento en tiempo real. Tocá cualquier número del embudo para ir directo a esos clientes en Pipeline. El foco del día te dice qué priorizar."
+        onCerrar={() => { setMostrarTooltip(false); marcarTooltipVisto('metricas') }}
+      />
     </ScrollView>
   )
 }
