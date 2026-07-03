@@ -25,8 +25,9 @@ export default function Layout() {
     if (loading) return
     const inLogin = segments[0] === 'login'
     const inOnboarding = segments[0] === 'onboarding'
+    const inRegistro = segments[0] === 'registro'
 
-    if (!session && !inLogin) {
+    if (!session && !inLogin && !inRegistro) {
       router.replace('/login')
     } else if (session) {
       verificarOnboarding()
@@ -42,20 +43,26 @@ export default function Layout() {
 
     const inOnboarding = segments[0] === 'onboarding'
     const inLogin = segments[0] === 'login'
+    const inRegistro = segments[0] === 'registro'
 
     if (data && !data.onboarding_completado && !inOnboarding) {
       router.replace('/onboarding')
-    } else if (data?.onboarding_completado && inLogin) {
+    } else if (data?.onboarding_completado && (inLogin || inRegistro)) {
       router.replace('/')
     }
   }
 
   if (loading) return null
 
+  const inLogin = segments[0] === 'login'
+  const inOnboarding = segments[0] === 'onboarding'
+  const inRegistro = segments[0] === 'registro'
+  const ocultarTabs = inLogin || inOnboarding || inRegistro
+
   return (
     <Tabs
       screenOptions={{
-        headerShown: true,
+        headerShown: !ocultarTabs,
         headerStyle: { backgroundColor: T.white, borderBottomWidth: 0.5, borderBottomColor: T.border },
         headerShadowVisible: false,
         headerTitle: () => (
@@ -66,7 +73,9 @@ export default function Layout() {
             <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, letterSpacing: -0.3 }}>Vendix</Text>
           </View>
         ),
-        tabBarStyle: { backgroundColor: T.navBg, borderTopColor: T.navBorder, borderTopWidth: 0.5, height: 60 },
+        tabBarStyle: ocultarTabs
+          ? { display: 'none' }
+          : { backgroundColor: T.navBg, borderTopColor: T.navBorder, borderTopWidth: 0.5, height: 60 },
         tabBarActiveTintColor: T.accent,
         tabBarInactiveTintColor: T.muted,
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
@@ -79,6 +88,7 @@ export default function Layout() {
       <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👤</Text> }} />
       <Tabs.Screen name="metricas" options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />
       <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="registro" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />

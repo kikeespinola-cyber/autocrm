@@ -45,8 +45,8 @@ export default function LoginScreen() {
           placeholderTextColor={T.muted}
           value={email}
           onChangeText={setEmail}
-          keyboardType='email-address'
-          autoCapitalize='none'
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
 
         <Text style={styles.inputLabel}>Contraseña</Text>
@@ -64,24 +64,29 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.footer}>Vendix · El CRM del vendedor</Text>
+      <TouchableOpacity onPress={() => router.push('/registro')}>
+        <Text style={styles.loginLink}>¿No tenés cuenta? <Text style={{ color: T.accent, fontWeight: '700' }}>Registrate acá</Text></Text>
+      </TouchableOpacity>
+
+      <Text style={styles.footer}>Vendix · Vendé con inteligencia.</Text>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: T.bg, justifyContent: 'center', padding: 28 },
-  logoArea:    { alignItems: 'center', marginBottom: 48 },
-  logoIcon:    { width: 72, height: 72, borderRadius: 18, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  logoLetter:  { color: '#fff', fontSize: 36, fontWeight: '900', marginBottom: 4 },
-  ruta1:       { position: 'absolute', bottom: 14, left: 10, right: 10, height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.6)' },
-  ruta2:       { position: 'absolute', bottom: 8, left: 16, right: 16, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.3)' },
-  logoText:    { fontSize: 32, fontWeight: '800', color: T.text, letterSpacing: -0.5 },
-  eslogan:     { fontSize: 13, color: T.muted, marginTop: 6, fontWeight: '500' },
-  form:        { backgroundColor: T.white, borderRadius: 16, padding: 20, borderWidth: 0.5, borderColor: T.border },
-  inputLabel:  { color: T.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6, marginTop: 12 },
-  input:       { backgroundColor: T.bg, borderRadius: 10, padding: 14, color: T.text, fontSize: 15, borderWidth: 0.5, borderColor: T.border },
-  btnLogin:    { backgroundColor: T.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
-  btnLoginText:{ color: '#fff', fontSize: 16, fontWeight: '800' },
-  footer:      { textAlign: 'center', color: T.muted, fontSize: 12, marginTop: 32, fontWeight: '500' },
+  container:       { flex: 1, backgroundColor: T.bg, justifyContent: 'center', padding: 28 },
+  logoArea:        { alignItems: 'center', marginBottom: 48 },
+  logoIcon:        { width: 72, height: 72, borderRadius: 18, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  logoLetter:      { color: '#fff', fontSize: 36, fontWeight: '900', marginBottom: 4 },
+  ruta1:           { position: 'absolute', bottom: 14, left: 10, right: 10, height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.6)' },
+  ruta2:           { position: 'absolute', bottom: 8, left: 16, right: 16, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.3)' },
+  logoText:        { fontSize: 32, fontWeight: '800', color: T.text, letterSpacing: -0.5 },
+  eslogan:         { fontSize: 13, color: T.muted, marginTop: 6, fontWeight: '500' },
+  form:            { backgroundColor: T.white, borderRadius: 16, padding: 20, borderWidth: 0.5, borderColor: T.border, marginBottom: 16 },
+  inputLabel:      { color: T.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6, marginTop: 12 },
+  input:           { backgroundColor: T.bg, borderRadius: 10, padding: 14, color: T.text, fontSize: 15, borderWidth: 0.5, borderColor: T.border },
+  btnLogin:        { backgroundColor: T.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 20 },
+  btnLoginText:    { color: '#fff', fontSize: 16, fontWeight: '800' },
+  loginLink:       { textAlign: 'center', color: T.muted, fontSize: 13, marginBottom: 8 },
+  footer:          { textAlign: 'center', color: T.muted, fontSize: 12, marginTop: 8, fontWeight: '500' },
 })

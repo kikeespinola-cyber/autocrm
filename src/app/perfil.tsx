@@ -267,7 +267,7 @@ export default function PerfilScreen() {
         <Text style={styles.logoutText}>Cerrar sesión</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>Vendix · El CRM del vendedor</Text>
+      <Text style={styles.footer}>Vendix · Vendé con inteligencia.</Text>
 
       <Modal visible={modalPerfil} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>

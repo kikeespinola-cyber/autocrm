@@ -213,7 +213,7 @@ export async function generarReportePDF(
 </div>
 
 <div class="footer">
-  Vendix · El CRM del vendedor · vendix-crm.vercel.app · Reporte generado el ${hoy}
+  Vendix · Vendé con inteligencia. · vendix-crm.vercel.app · Reporte generado el ${hoy}
 </div>
 
 <script>window.onload = function() { window.print(); }</script>
