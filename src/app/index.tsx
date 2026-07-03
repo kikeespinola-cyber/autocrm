@@ -6,14 +6,17 @@ import React, { useState, useEffect } from 'react'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 import { necesitaContactoHoy, proximoContactoTexto } from '../lib/protocolo'
-import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../lib/theme'
+import { T, tempDim, tempTextColor, tempLabel } from '../lib/theme'
 import { supabase } from '../lib/supabase'
+import Tooltip from '../components/Tooltip'
+import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
 
 export default function HoyScreen() {
   const router = useRouter()
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
+  const [clients, setClients]           = useState<Client[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState<string | null>(null)
+  const [mostrarTooltip, setMostrarTooltip] = useState(false)
 
   useEffect(() => {
     pedirPermisos().then(granted => {
@@ -24,6 +27,9 @@ export default function HoyScreen() {
   useFocusEffect(
     React.useCallback(() => {
       cargar()
+      tooltipVisto('tu_dia').then(visto => {
+        if (!visto) setMostrarTooltip(true)
+      })
     }, [])
   )
 
@@ -63,11 +69,10 @@ export default function HoyScreen() {
   )
   const cumpleHoy = clients.filter(c => {
     if (!c.birthday) return false
-    const partes = c.birthday.split('/')
-    if (partes.length !== 2) return false
-    const dia = parseInt(partes[0])
-    const mes = parseInt(partes[1])
-    return dia === hoy.getDate() && mes === hoy.getMonth() + 1
+    const b   = c.birthday.toLowerCase()
+    const dia = hoy.getDate().toString()
+    const mes = hoy.toLocaleString('es-PY', { month: 'short' }).toLowerCase()
+    return b.includes(dia) && b.includes(mes)
   })
 
   if (error) {
@@ -254,6 +259,13 @@ export default function HoyScreen() {
           <Text style={styles.emptySub}>Andá a Clientes para agregar el primero</Text>
         </View>
       )}
+
+      <Tooltip
+        visible={mostrarTooltip}
+        titulo="⚡ Tu día"
+        descripcion="Acá aparecen los clientes que necesitan contacto hoy. Priorizados automáticamente — los más urgentes arriba. Tocá un cliente para ver su ficha o usá los botones rápidos para registrar un contacto sin abrirla."
+        onCerrar={() => { setMostrarTooltip(false); marcarTooltipVisto('tu_dia') }}
+      />
     </ScrollView>
   )
 }
