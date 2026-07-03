@@ -27,12 +27,19 @@ export default function OnboardingScreen() {
   const [paso, setPaso] = useState(0)
 
   async function finalizar() {
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase
-      .from('subscriptions')
-      .update({ onboarding_completado: true })
-      .eq('user_id', user?.id)
-    router.replace('/')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ onboarding_completado: true })
+        .eq('user_id', user.id)
+      if (error) console.error('Error onboarding:', error)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      router.replace('/')
+    }
   }
 
   function siguiente() {

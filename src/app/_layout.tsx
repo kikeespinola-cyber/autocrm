@@ -1,6 +1,6 @@
 import { Tabs, useRouter, useSegments } from 'expo-router'
 import { Text, View } from 'react-native'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 
@@ -9,6 +9,7 @@ export default function Layout() {
   const segments = useSegments()
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const onboardingVerificado = useRef(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -17,20 +18,29 @@ export default function Layout() {
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      onboardingVerificado.current = false
     })
     return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
     if (loading) return
-    const inLogin = segments[0] === 'login'
+    const inLogin      = segments[0] === 'login'
+    const inRegistro   = segments[0] === 'registro'
     const inOnboarding = segments[0] === 'onboarding'
-    const inRegistro = segments[0] === 'registro'
 
     if (!session && !inLogin && !inRegistro) {
       router.replace('/login')
-    } else if (session) {
+      return
+    }
+
+    if (session && !inLogin && !inRegistro && !inOnboarding && !onboardingVerificado.current) {
+      onboardingVerificado.current = true
       verificarOnboarding()
+    }
+
+    if (session && (inLogin || inRegistro)) {
+      router.replace('/')
     }
   }, [session, loading, segments])
 
@@ -41,23 +51,17 @@ export default function Layout() {
       .eq('user_id', session.user.id)
       .single()
 
-    const inOnboarding = segments[0] === 'onboarding'
-    const inLogin = segments[0] === 'login'
-    const inRegistro = segments[0] === 'registro'
-
-    if (data && !data.onboarding_completado && !inOnboarding) {
+    if (data && !data.onboarding_completado) {
       router.replace('/onboarding')
-    } else if (data?.onboarding_completado && (inLogin || inRegistro)) {
-      router.replace('/')
     }
   }
 
   if (loading) return null
 
-  const inLogin = segments[0] === 'login'
+  const inLogin      = segments[0] === 'login'
   const inOnboarding = segments[0] === 'onboarding'
-  const inRegistro = segments[0] === 'registro'
-  const ocultarTabs = inLogin || inOnboarding || inRegistro
+  const inRegistro   = segments[0] === 'registro'
+  const ocultarTabs  = inLogin || inOnboarding || inRegistro
 
   return (
     <Tabs
