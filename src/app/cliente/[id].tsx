@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Image } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Client, Interaction } from '../../lib/types'
 import { supabase } from '../../lib/supabase'
@@ -37,8 +37,10 @@ export default function ClienteDetail() {
   const [sugerencia, setSugerencia]     = useState<string>('')
   const [mensajeIA, setMensajeIA]       = useState<string>('')
   const [cargandoIA, setCargandoIA]     = useState(false)
+  const [iaExpandida, setIaExpandida]   = useState(false)
   const [copiado, setCopiado]           = useState(false)
   const [ultimaAccion, setUltimaAccion] = useState<{ tipo: string; valorAnterior: any } | null>(null)
+  const [subiendoFoto, setSubiendoFoto] = useState(false)
   const { formatDual } = useTipoCambio()
   const interactionsRef = React.useRef<Interaction[]>([])
 
@@ -116,6 +118,33 @@ export default function ClienteDetail() {
     await cargar()
   }
 
+  async function subirFotoVehiculo() {
+    if (typeof window === 'undefined') return
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0]
+      if (!file) return
+      setSubiendoFoto(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const ext = file.name.split('.').pop()
+        const path = `${user?.id}/${id}.${ext}`
+        await supabase.storage.from('vehiculos').upload(path, file, { upsert: true })
+        const { data: { publicUrl } } = supabase.storage.from('vehiculos').getPublicUrl(path)
+        const urlConTimestamp = publicUrl + '?t=' + Date.now()
+        await supabase.from('clients').update({ vehicle_photo_url: urlConTimestamp }).eq('id', id)
+        setClient(prev => prev ? { ...prev, vehicle_photo_url: urlConTimestamp } : prev)
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setSubiendoFoto(false)
+      }
+    }
+    input.click()
+  }
+
   function abrirWhatsApp() {
     const phone = client?.phone?.replace(/\D/g, '') || ''
     if (typeof window !== 'undefined') window.open(`https://wa.me/595${phone}`, '_blank')
@@ -170,6 +199,28 @@ export default function ClienteDetail() {
             </View>
           </View>
         </View>
+
+        {client.vehicle_photo_url ? (
+          <TouchableOpacity onPress={subirFotoVehiculo} style={styles.fotoVehiculoContainer}>
+            <Image
+              source={{ uri: client.vehicle_photo_url }}
+              style={styles.fotoVehiculo}
+              resizeMode="cover"
+            />
+            <View style={styles.fotoVehiculoEdit}>
+              <Text style={{ fontSize: 12, color: '#fff', fontWeight: '700' }}>
+                {subiendoFoto ? '⏳ Subiendo...' : '📷 Cambiar foto'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.fotoVehiculoVacia} onPress={subirFotoVehiculo}>
+            <Text style={{ fontSize: 24 }}>🚗</Text>
+            <Text style={{ color: T.muted, fontSize: 12, fontWeight: '600', marginTop: 4 }}>
+              {subiendoFoto ? '⏳ Subiendo...' : 'Agregar foto del vehículo de interés'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {ultimaAccion && (
@@ -181,13 +232,17 @@ export default function ClienteDetail() {
         </View>
       )}
 
-      <View style={styles.iaStrip}>
-        <Text style={styles.iaTitle}>✦ SUGERENCIA IA</Text>
-        {cargandoIA ? (
-          <Text style={styles.iaText}>Analizando historial...</Text>
-        ) : (
+      {/* IA colapsable */}
+      <TouchableOpacity style={styles.iaStrip} onPress={() => setIaExpandida(!iaExpandida)} activeOpacity={0.8}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.iaTitle}>✦ SUGERENCIA IA</Text>
+          <Text style={{ color: T.accentText, fontSize: 11, fontWeight: '700' }}>
+            {cargandoIA ? '⏳ Analizando...' : iaExpandida ? '▲ Ocultar' : '▼ Ver sugerencia'}
+          </Text>
+        </View>
+        {iaExpandida && !cargandoIA && (
           <>
-            <Text style={styles.iaText}>{sugerencia}</Text>
+            <Text style={[styles.iaText, { marginTop: 8 }]}>{sugerencia}</Text>
             {mensajeIA ? (
               <>
                 <View style={styles.iaDivider} />
@@ -200,7 +255,7 @@ export default function ClienteDetail() {
             ) : null}
           </>
         )}
-      </View>
+      </TouchableOpacity>
 
       <View style={styles.quickActions}>
         {[
@@ -305,7 +360,7 @@ export default function ClienteDetail() {
         )}
       </ScrollView>
 
-      <Modal visible={modalNota} animationType='slide' transparent>
+      <Modal visible={modalNota} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitulo}>Agregar nota</Text>
@@ -334,66 +389,70 @@ export default function ClienteDetail() {
 }
 
 const styles = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: T.bg },
-  loading:            { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
-  header:             { padding: 20, paddingTop: 60, backgroundColor: T.white, borderBottomWidth: 0.5, borderBottomColor: T.border },
-  headerTop:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  back:               { color: T.accent, fontSize: 14, fontWeight: '700' },
-  editBtn:            { color: T.muted, fontSize: 13, fontWeight: '600' },
-  profileRow:         { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar:             { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  avatarText:         { color: '#fff', fontSize: 18, fontWeight: '800' },
-  clientName:         { color: T.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
-  badgeRow:           { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
-  badge:              { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeText:          { fontSize: 11, fontWeight: '700' },
-  docsTag:            { color: T.green, fontSize: 11, fontWeight: '700' },
-  soldTag:            { color: T.green, fontSize: 11, fontWeight: '700' },
-  undoBar:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1A1A2E', paddingHorizontal: 16, paddingVertical: 10, margin: 12, borderRadius: 10 },
-  undoText:           { color: '#fff', fontSize: 12, fontWeight: '500' },
-  undoBtn:            { color: T.accent, fontSize: 12, fontWeight: '800' },
-  iaStrip:            { margin: 12, backgroundColor: T.accentDim, borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: T.accent + '55' },
-  iaTitle:            { color: T.accentText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
-  iaText:             { color: T.accentText, fontSize: 13, lineHeight: 20 },
-  iaDivider:          { height: 0.5, backgroundColor: T.accent + '44', marginVertical: 10 },
-  iaMensajeLabel:     { color: T.accentText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
-  iaMensaje:          { color: T.accentDark, fontSize: 12, lineHeight: 20, fontStyle: 'italic' },
-  iaCopyBtn:          { backgroundColor: T.accent, borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
-  iaCopyText:         { color: '#fff', fontSize: 12, fontWeight: '800' },
-  quickActions:       { flexDirection: 'row', padding: 12, paddingBottom: 6, gap: 8 },
-  qaBtn:              { flex: 1, alignItems: 'center', padding: 10, borderRadius: 12 },
-  qaIcon:             { fontSize: 18 },
-  qaLabel:            { fontSize: 9, fontWeight: '700', marginTop: 3 },
-  secondActions:      { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: T.border },
-  secBtn:             { flex: 1, backgroundColor: T.white, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 0.5, borderColor: T.border },
-  secBtnText:         { fontSize: 11, fontWeight: '700' },
-  tabs:               { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: T.border, backgroundColor: T.white },
-  tabBtn:             { flex: 1, padding: 12, alignItems: 'center' },
-  tabBtnActive:       { borderBottomWidth: 2, borderBottomColor: T.accent },
-  tabText:            { fontSize: 13, fontWeight: '600' },
-  scroll:             { flex: 1 },
-  infoCard:           { backgroundColor: T.white, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
-  infoRow:            { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: T.border },
-  infoLabel:          { color: T.muted, fontSize: 12 },
-  infoValue:          { color: T.text, fontSize: 13, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
-  sectionLabel:       { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
-  tempRow:            { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  tempBtn:            { flex: 1, padding: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1 },
-  tempBtnText:        { fontSize: 12, fontWeight: '700' },
-  interactionCard:    { flexDirection: 'row', gap: 12, backgroundColor: T.white, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: T.border },
-  interactionIcon:    { fontSize: 18 },
-  interactionContent: { color: T.textSub, fontSize: 13 },
-  interactionDate:    { color: T.muted, fontSize: 11, marginTop: 4 },
-  empty:              { alignItems: 'center', marginTop: 40 },
-  emptyText:          { color: T.text, fontSize: 14, fontWeight: '700' },
-  emptySub:           { color: T.muted, fontSize: 12, marginTop: 6, textAlign: 'center' },
-  modalOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard:          { backgroundColor: T.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalTitulo:        { color: T.text, fontSize: 18, fontWeight: '800', marginBottom: 16 },
-  notaInput:          { backgroundColor: T.bg, borderRadius: 10, padding: 12, color: T.text, fontSize: 14, borderWidth: 0.5, borderColor: T.border, minHeight: 100, textAlignVertical: 'top' },
-  modalBtns:          { flexDirection: 'row', gap: 10, marginTop: 16 },
-  btnCancelar:        { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.bg, borderWidth: 0.5, borderColor: T.border },
-  btnCancelarText:    { color: T.muted, fontWeight: '700' },
-  btnGuardar:         { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent },
-  btnGuardarText:     { color: '#fff', fontWeight: '800' },
+  container:             { flex: 1, backgroundColor: T.bg },
+  loading:               { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
+  header:                { backgroundColor: T.white, borderBottomWidth: 0.5, borderBottomColor: T.border },
+  headerTop:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, paddingBottom: 12 },
+  back:                  { color: T.accent, fontSize: 14, fontWeight: '700' },
+  editBtn:               { color: T.muted, fontSize: 13, fontWeight: '600' },
+  profileRow:            { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingBottom: 12 },
+  avatar:                { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  avatarText:            { color: '#fff', fontSize: 18, fontWeight: '800' },
+  clientName:            { color: T.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  badgeRow:              { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
+  badge:                 { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  badgeText:             { fontSize: 11, fontWeight: '700' },
+  docsTag:               { color: T.green, fontSize: 11, fontWeight: '700' },
+  soldTag:               { color: T.green, fontSize: 11, fontWeight: '700' },
+  fotoVehiculoContainer: { height: 160, overflow: 'hidden' },
+  fotoVehiculo:          { width: '100%', height: 160 },
+  fotoVehiculoEdit:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.4)', padding: 8, alignItems: 'center' },
+  fotoVehiculoVacia:     { height: 70, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, backgroundColor: T.bg, borderTopWidth: 0.5, borderTopColor: T.border },
+  undoBar:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1A1A2E', paddingHorizontal: 16, paddingVertical: 10, margin: 12, borderRadius: 10 },
+  undoText:              { color: '#fff', fontSize: 12, fontWeight: '500' },
+  undoBtn:               { color: T.accent, fontSize: 12, fontWeight: '800' },
+  iaStrip:               { marginHorizontal: 12, marginVertical: 8, backgroundColor: T.accentDim, borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: T.accent + '55' },
+  iaTitle:               { color: T.accentText, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  iaText:                { color: T.accentText, fontSize: 13, lineHeight: 20 },
+  iaDivider:             { height: 0.5, backgroundColor: T.accent + '44', marginVertical: 10 },
+  iaMensajeLabel:        { color: T.accentText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
+  iaMensaje:             { color: T.accentDark, fontSize: 12, lineHeight: 20, fontStyle: 'italic' },
+  iaCopyBtn:             { backgroundColor: T.accent, borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
+  iaCopyText:            { color: '#fff', fontSize: 12, fontWeight: '800' },
+  quickActions:          { flexDirection: 'row', padding: 12, paddingBottom: 6, gap: 8 },
+  qaBtn:                 { flex: 1, alignItems: 'center', padding: 10, borderRadius: 12 },
+  qaIcon:                { fontSize: 18 },
+  qaLabel:               { fontSize: 9, fontWeight: '700', marginTop: 3 },
+  secondActions:         { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: T.border },
+  secBtn:                { flex: 1, backgroundColor: T.white, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 0.5, borderColor: T.border },
+  secBtnText:            { fontSize: 11, fontWeight: '700' },
+  tabs:                  { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: T.border, backgroundColor: T.white },
+  tabBtn:                { flex: 1, padding: 12, alignItems: 'center' },
+  tabBtnActive:          { borderBottomWidth: 2, borderBottomColor: T.accent },
+  tabText:               { fontSize: 13, fontWeight: '600' },
+  scroll:                { flex: 1 },
+  infoCard:              { backgroundColor: T.white, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
+  infoRow:               { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: T.border },
+  infoLabel:             { color: T.muted, fontSize: 12 },
+  infoValue:             { color: T.text, fontSize: 13, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
+  sectionLabel:          { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
+  tempRow:               { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  tempBtn:               { flex: 1, padding: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1 },
+  tempBtnText:           { fontSize: 12, fontWeight: '700' },
+  interactionCard:       { flexDirection: 'row', gap: 12, backgroundColor: T.white, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: T.border },
+  interactionIcon:       { fontSize: 18 },
+  interactionContent:    { color: T.textSub, fontSize: 13 },
+  interactionDate:       { color: T.muted, fontSize: 11, marginTop: 4 },
+  empty:                 { alignItems: 'center', marginTop: 40 },
+  emptyText:             { color: T.text, fontSize: 14, fontWeight: '700' },
+  emptySub:              { color: T.muted, fontSize: 12, marginTop: 6, textAlign: 'center' },
+  modalOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalCard:             { backgroundColor: T.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalTitulo:           { color: T.text, fontSize: 18, fontWeight: '800', marginBottom: 16 },
+  notaInput:             { backgroundColor: T.bg, borderRadius: 10, padding: 12, color: T.text, fontSize: 14, borderWidth: 0.5, borderColor: T.border, minHeight: 100, textAlignVertical: 'top' },
+  modalBtns:             { flexDirection: 'row', gap: 10, marginTop: 16 },
+  btnCancelar:           { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.bg, borderWidth: 0.5, borderColor: T.border },
+  btnCancelarText:       { color: T.muted, fontWeight: '700' },
+  btnGuardar:            { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent },
+  btnGuardarText:        { color: '#fff', fontWeight: '800' },
 })
