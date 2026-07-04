@@ -55,6 +55,7 @@ export default function PerfilScreen() {
   const [concesionaria, setConcesionaria]   = useState('')
   const [marcaVehiculo, setMarcaVehiculo]   = useState('')
   const [avatarUrl, setAvatarUrl]           = useState<string | null>(null)
+  const [isAdmin, setIsAdmin]               = useState(false)
   const [guardando, setGuardando]           = useState(false)
   const [subiendoFoto, setSubiendoFoto]     = useState(false)
 
@@ -68,7 +69,7 @@ export default function PerfilScreen() {
 
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url')
+      .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin')
       .eq('user_id', user?.id)
       .single()
 
@@ -77,6 +78,7 @@ export default function PerfilScreen() {
       setConcesionaria(sub.concesionaria || '')
       setMarcaVehiculo(sub.marca_vehiculo || '')
       setAvatarUrl(sub.avatar_url || null)
+      setIsAdmin(sub.is_admin || false)
     }
   }
 
@@ -148,9 +150,7 @@ export default function PerfilScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
-      {/* Card de perfil */}
       <View style={styles.perfilCard}>
-        {/* Avatar con botón de editar */}
         <TouchableOpacity onPress={subirFoto} style={styles.avatarContainer}>
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
@@ -164,22 +164,15 @@ export default function PerfilScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Info */}
         <View style={styles.perfilInfo}>
           <Text style={styles.saludo}>{saludo},</Text>
           <Text style={styles.nombre}>{nombre} 👋</Text>
           {concesionaria ? (
             <Text style={styles.concesionariaText}>🏢 {concesionaria}</Text>
           ) : null}
-
-          {/* Logo de marca pequeño */}
           {marcaLogo ? (
             <View style={styles.marcaLogoRow}>
-              <Image
-                source={{ uri: marcaLogo }}
-                style={styles.marcaLogoSmall}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: marcaLogo }} style={styles.marcaLogoSmall} resizeMode="contain" />
               <Text style={[styles.marcaNombre, { color: marcaColor }]}>{marcaVehiculo}</Text>
             </View>
           ) : marcaVehiculo ? (
@@ -194,7 +187,6 @@ export default function PerfilScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Analytics */}
       <Text style={styles.sectionLabel}>TUS MÉTRICAS</Text>
       <View style={styles.statsGrid}>
         {[
@@ -255,13 +247,15 @@ export default function PerfilScreen() {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.exportBtn, { borderColor: T.purple + '44' }]} onPress={() => router.push('/admin')}>
-        <Text style={styles.exportIcon}>👑</Text>
-        <View>
-          <Text style={styles.exportTitle}>Panel de administrador</Text>
-          <Text style={styles.exportSub}>Gestionar usuarios y suscripciones</Text>
-        </View>
-      </TouchableOpacity>
+      {isAdmin && (
+        <TouchableOpacity style={[styles.exportBtn, { borderColor: T.purple + '44' }]} onPress={() => router.push('/admin')}>
+          <Text style={styles.exportIcon}>👑</Text>
+          <View>
+            <Text style={styles.exportTitle}>Panel de administrador</Text>
+            <Text style={styles.exportSub}>Gestionar usuarios y suscripciones</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity style={styles.logoutBtn} onPress={cerrarSesion}>
         <Text style={styles.logoutText}>Cerrar sesión</Text>
@@ -357,7 +351,6 @@ const styles = StyleSheet.create({
   marcaNombre:       { fontSize: 11, fontWeight: '700' },
   marcaBadge:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 6, alignSelf: 'flex-start' },
   marcaBadgeText:    { color: '#fff', fontSize: 10, fontWeight: '800' },
-  email:             { color: T.muted, fontSize: 11, marginTop: 2 },
   sectionLabel:      { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10, marginTop: 4 },
   statsGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   statCard:          { width: '48%', backgroundColor: T.white, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: T.border },
