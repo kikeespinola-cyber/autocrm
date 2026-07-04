@@ -48,3 +48,15 @@ export interface Reminder {
   completed: boolean
   created_at: string
 }
+
+export interface Reunion {
+  id: string
+  user_id: string
+  client_id: string | null
+  titulo: string
+  fecha: string
+  hora: string
+  notas: string | null
+  completada: boolean
+  created_at: string
+}

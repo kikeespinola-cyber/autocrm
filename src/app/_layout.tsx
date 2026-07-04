@@ -1,6 +1,6 @@
 import { Tabs, useRouter, useSegments } from 'expo-router'
 import { Text, View } from 'react-native'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 
@@ -9,52 +9,31 @@ export default function Layout() {
   const segments = useSegments()
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const onboardingVerificado = useRef(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') return
       setSession(session)
-      onboardingVerificado.current = false
     })
     return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
     if (loading) return
-    const inLogin      = segments[0] === 'login'
-    const inRegistro   = segments[0] === 'registro'
-    const inOnboarding = segments[0] === 'onboarding'
+    const inLogin    = segments[0] === 'login'
+    const inRegistro = segments[0] === 'registro'
 
     if (!session && !inLogin && !inRegistro) {
       router.replace('/login')
-      return
     }
-
-    if (session && !inLogin && !inRegistro && !inOnboarding && !onboardingVerificado.current) {
-      onboardingVerificado.current = true
-      verificarOnboarding()
-    }
-
     if (session && (inLogin || inRegistro)) {
       router.replace('/')
     }
-  }, [session, loading, segments])
-
-  async function verificarOnboarding() {
-    const { data } = await supabase
-      .from('subscriptions')
-      .select('onboarding_completado')
-      .eq('user_id', session.user.id)
-      .single()
-
-    if (data && !data.onboarding_completado) {
-      router.replace('/onboarding')
-    }
-  }
+  }, [session, loading])
 
   if (loading) return null
 
@@ -88,6 +67,7 @@ export default function Layout() {
       <Tabs.Screen name="index" options={{ title: 'Hoy', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>⚡</Text> }} />
       <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👥</Text> }} />
       <Tabs.Screen name="pipeline" options={{ title: 'Pipeline', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>◈</Text> }} />
+      <Tabs.Screen name="reuniones" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📅</Text> }} />
       <Tabs.Screen name="postventa" options={{ title: 'Post-venta', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤝</Text> }} />
       <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👤</Text> }} />
       <Tabs.Screen name="metricas" options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />

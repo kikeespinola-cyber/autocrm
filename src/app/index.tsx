@@ -13,10 +13,11 @@ import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
 
 export default function HoyScreen() {
   const router = useRouter()
-  const [clients, setClients]           = useState<Client[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState<string | null>(null)
+  const [clients, setClients]               = useState<Client[]>([])
+  const [loading, setLoading]               = useState(true)
+  const [error, setError]                   = useState<string | null>(null)
   const [mostrarTooltip, setMostrarTooltip] = useState(false)
+  const [reunionesHoy, setReunionesHoy]     = useState<any[]>([])
 
   useEffect(() => {
     pedirPermisos().then(granted => {
@@ -43,6 +44,17 @@ export default function HoyScreen() {
     } finally {
       setLoading(false)
     }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const hoyISO = new Date().toISOString().split('T')[0]
+    const { data: r } = await supabase
+      .from('reuniones')
+      .select('*')
+      .eq('user_id', user?.id)
+      .eq('fecha', hoyISO)
+      .eq('completada', false)
+      .order('hora', { ascending: true })
+    if (r) setReunionesHoy(r)
   }
 
   async function registrarRapido(clientId: string, type: string, content: string) {
@@ -115,6 +127,30 @@ export default function HoyScreen() {
           </View>
         ))}
       </View>
+
+      {reunionesHoy.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>📅 REUNIONES DE HOY</Text>
+          {reunionesHoy.map(r => (
+            <TouchableOpacity
+              key={r.id}
+              style={[styles.card, { borderLeftWidth: 3, borderLeftColor: T.accent }]}
+              onPress={() => router.push('/reuniones')}
+            >
+              <View style={styles.cardRow}>
+                <View style={[styles.avatar, { backgroundColor: T.accentDim }]}>
+                  <Text style={{ fontSize: 18 }}>📅</Text>
+                </View>
+                <View style={styles.cardInfo}>
+                  <Text style={styles.cardName}>{r.titulo}</Text>
+                  <Text style={[styles.cardAccion, { color: T.accent }]}>🕐 {r.hora}</Text>
+                  {r.notas && <Text style={styles.cardVehicle}>{r.notas}</Text>}
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </>
+      )}
 
       {cumpleHoy.length > 0 && (
         <>
