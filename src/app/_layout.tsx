@@ -1,5 +1,5 @@
 import { Tabs, useRouter, useSegments } from 'expo-router'
-import { Text, View } from 'react-native'
+import { Text, View, ActivityIndicator } from 'react-native'
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
@@ -15,6 +15,7 @@ export default function Layout() {
       setSession(session)
       setLoading(false)
     })
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'TOKEN_REFRESHED') return
       setSession(session)
@@ -35,7 +36,17 @@ export default function Layout() {
     }
   }, [session, loading])
 
-  if (loading) return null
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 28, fontWeight: '900' }}>V</Text>
+        </View>
+        <Text style={{ color: T.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 }}>Vendix</Text>
+        <ActivityIndicator color={T.accent} size="small" style={{ marginTop: 8 }} />
+      </View>
+    )
+  }
 
   const inLogin      = segments[0] === 'login'
   const inOnboarding = segments[0] === 'onboarding'
