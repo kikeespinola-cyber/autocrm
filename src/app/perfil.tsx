@@ -6,6 +6,7 @@ import { getClients } from '../lib/clientesService'
 import { Client } from '../lib/types'
 import { T } from '../lib/theme'
 import { generarReportePDF } from '../lib/reportePDF'
+import { actualizarRacha, calcularInsignias } from '../lib/racha'
 
 const MARCAS = [
   'Toyota', 'Volkswagen', 'Chevrolet', 'Ford', 'Hyundai',
@@ -56,6 +57,7 @@ export default function PerfilScreen() {
   const [marcaVehiculo, setMarcaVehiculo]   = useState('')
   const [avatarUrl, setAvatarUrl]           = useState<string | null>(null)
   const [isAdmin, setIsAdmin]               = useState(false)
+  const [racha, setRacha]                   = useState(0)
   const [guardando, setGuardando]           = useState(false)
   const [subiendoFoto, setSubiendoFoto]     = useState(false)
 
@@ -69,7 +71,7 @@ export default function PerfilScreen() {
 
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin')
+      .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin, racha_dias')
       .eq('user_id', user?.id)
       .single()
 
@@ -79,6 +81,12 @@ export default function PerfilScreen() {
       setMarcaVehiculo(sub.marca_vehiculo || '')
       setAvatarUrl(sub.avatar_url || null)
       setIsAdmin(sub.is_admin || false)
+      setRacha(sub.racha_dias || 0)
+    }
+
+    if (user?.id) {
+      const rachaActual = await actualizarRacha(user.id)
+      setRacha(rachaActual)
     }
   }
 
@@ -95,8 +103,7 @@ export default function PerfilScreen() {
         const { data: { user } } = await supabase.auth.getUser()
         const ext = file.name.split('.').pop()
         const path = `${user?.id}/avatar.${ext}`
-        const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-        if (error) throw error
+        await supabase.storage.from('avatars').upload(path, file, { upsert: true })
         const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
         await supabase.from('subscriptions').update({ avatar_url: publicUrl }).eq('user_id', user?.id)
         setAvatarUrl(publicUrl + '?t=' + Date.now())
@@ -146,6 +153,7 @@ export default function PerfilScreen() {
   const saludo       = hora < 12 ? 'Buenos días' : hora < 18 ? 'Buenas tardes' : 'Buenas noches'
   const marcaColor   = marcaVehiculo ? (MARCA_COLORES[marcaVehiculo] || T.accent) : T.accent
   const marcaLogo    = marcaVehiculo ? MARCA_LOGOS[marcaVehiculo] : null
+  const insignias    = calcularInsignias(racha, vendidos.length, clients.length)
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -167,9 +175,7 @@ export default function PerfilScreen() {
         <View style={styles.perfilInfo}>
           <Text style={styles.saludo}>{saludo},</Text>
           <Text style={styles.nombre}>{nombre} 👋</Text>
-          {concesionaria ? (
-            <Text style={styles.concesionariaText}>🏢 {concesionaria}</Text>
-          ) : null}
+          {concesionaria ? <Text style={styles.concesionariaText}>🏢 {concesionaria}</Text> : null}
           {marcaLogo ? (
             <View style={styles.marcaLogoRow}>
               <Image source={{ uri: marcaLogo }} style={styles.marcaLogoSmall} resizeMode="contain" />
@@ -185,6 +191,33 @@ export default function PerfilScreen() {
         <TouchableOpacity onPress={() => setModalPerfil(true)} style={{ alignSelf: 'flex-start' }}>
           <Text style={{ fontSize: 18 }}>✏️</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Racha */}
+      <View style={styles.rachaCard}>
+        <Text style={{ fontSize: 28 }}>{racha >= 7 ? '🔥' : racha >= 3 ? '⚡' : '📅'}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rachaNum}>{racha} día{racha !== 1 ? 's' : ''} consecutivos</Text>
+          <Text style={styles.rachaSub}>
+            {racha === 0 ? 'Abrí Vendix todos los días para mantener tu racha' :
+             racha < 3  ? 'Buen comienzo — seguí así' :
+             racha < 7  ? '¡Vas muy bien! Llegá a los 7 días' :
+             racha < 30 ? '🔥 En llamas — ¡no pares!' :
+             '⚡ Imparable — 30+ días de racha'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Insignias */}
+      <Text style={styles.sectionLabel}>TUS INSIGNIAS</Text>
+      <View style={styles.insigniasGrid}>
+        {insignias.map(ins => (
+          <View key={ins.id} style={[styles.insigniaCard, !ins.obtenida && { opacity: 0.35 }]}>
+            <Text style={styles.insigniaEmoji}>{ins.emoji}</Text>
+            <Text style={styles.insigniaLabel}>{ins.label}</Text>
+            <Text style={styles.insigniaDesc}>{ins.descripcion}</Text>
+          </View>
+        ))}
       </View>
 
       <Text style={styles.sectionLabel}>TUS MÉTRICAS</Text>
@@ -308,10 +341,7 @@ export default function PerfilScreen() {
 
               {marcaVehiculo && MARCA_LOGOS[marcaVehiculo] ? (
                 <View style={{ alignItems: 'center', marginTop: 16, padding: 14, backgroundColor: T.bg, borderRadius: 12 }}>
-                  <Image
-                    source={{ uri: MARCA_LOGOS[marcaVehiculo] }}
-                    style={{ width: 50, height: 50, resizeMode: 'contain' }}
-                  />
+                  <Image source={{ uri: MARCA_LOGOS[marcaVehiculo] }} style={{ width: 50, height: 50, resizeMode: 'contain' }} />
                   <Text style={{ color: T.muted, fontSize: 11, marginTop: 6 }}>Logo de {marcaVehiculo}</Text>
                 </View>
               ) : null}
@@ -336,7 +366,7 @@ export default function PerfilScreen() {
 const styles = StyleSheet.create({
   container:         { flex: 1, backgroundColor: T.bg },
   content:           { padding: 20, paddingTop: 20, paddingBottom: 60 },
-  perfilCard:        { backgroundColor: T.white, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 24, borderWidth: 0.5, borderColor: T.border },
+  perfilCard:        { backgroundColor: T.white, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
   avatarContainer:   { position: 'relative' },
   avatarImg:         { width: 64, height: 64, borderRadius: 32 },
   avatarGrande:      { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
@@ -351,6 +381,14 @@ const styles = StyleSheet.create({
   marcaNombre:       { fontSize: 11, fontWeight: '700' },
   marcaBadge:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 6, alignSelf: 'flex-start' },
   marcaBadgeText:    { color: '#fff', fontSize: 10, fontWeight: '800' },
+  rachaCard:         { backgroundColor: T.white, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
+  rachaNum:          { color: T.text, fontSize: 16, fontWeight: '800' },
+  rachaSub:          { color: T.muted, fontSize: 12, marginTop: 3 },
+  insigniasGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  insigniaCard:      { width: '31%', backgroundColor: T.white, borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 0.5, borderColor: T.border },
+  insigniaEmoji:     { fontSize: 24, marginBottom: 6 },
+  insigniaLabel:     { color: T.text, fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  insigniaDesc:      { color: T.muted, fontSize: 9, textAlign: 'center', marginTop: 3 },
   sectionLabel:      { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10, marginTop: 4 },
   statsGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   statCard:          { width: '48%', backgroundColor: T.white, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: T.border },
