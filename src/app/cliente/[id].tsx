@@ -28,19 +28,21 @@ const origenLabel: Record<string, string> = {
 export default function ClienteDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-  const [client, setClient]             = useState<Client | null>(null)
-  const [interactions, setInteractions] = useState<Interaction[]>([])
-  const [tab, setTab]                   = useState<'info'|'historial'>('info')
-  const [modalNota, setModalNota]       = useState(false)
-  const [nota, setNota]                 = useState('')
-  const [guardando, setGuardando]       = useState(false)
-  const [sugerencia, setSugerencia]     = useState<string>('')
-  const [mensajeIA, setMensajeIA]       = useState<string>('')
-  const [cargandoIA, setCargandoIA]     = useState(false)
-  const [iaExpandida, setIaExpandida]   = useState(false)
-  const [copiado, setCopiado]           = useState(false)
-  const [ultimaAccion, setUltimaAccion] = useState<{ tipo: string; valorAnterior: any } | null>(null)
-  const [subiendoFoto, setSubiendoFoto] = useState(false)
+  const [client, setClient]               = useState<Client | null>(null)
+  const [interactions, setInteractions]   = useState<Interaction[]>([])
+  const [tab, setTab]                     = useState<'info'|'historial'>('info')
+  const [modalNota, setModalNota]         = useState(false)
+  const [modalDescarte, setModalDescarte] = useState(false)
+  const [nota, setNota]                   = useState('')
+  const [motivoDescarte, setMotivoDescarte] = useState('')
+  const [guardando, setGuardando]         = useState(false)
+  const [sugerencia, setSugerencia]       = useState<string>('')
+  const [mensajeIA, setMensajeIA]         = useState<string>('')
+  const [cargandoIA, setCargandoIA]       = useState(false)
+  const [iaExpandida, setIaExpandida]     = useState(false)
+  const [copiado, setCopiado]             = useState(false)
+  const [ultimaAccion, setUltimaAccion]   = useState<{ tipo: string; valorAnterior: any } | null>(null)
+  const [subiendoFoto, setSubiendoFoto]   = useState(false)
   const { formatDual } = useTipoCambio()
   const interactionsRef = React.useRef<Interaction[]>([])
 
@@ -107,6 +109,22 @@ export default function ClienteDetail() {
     await supabase.from('interactions').insert({ client_id: id, type: 'sale', content: '✅ Venta cerrada' })
     setClient(prev => prev ? { ...prev, sold: true } : prev)
     if (typeof window !== 'undefined') window.alert('¡Venta cerrada! 🎉')
+  }
+
+  async function descartarCliente() {
+    if (!motivoDescarte.trim()) return
+    await supabase.from('clients').update({
+      temperature: 'cold',
+      motivo_descarte: motivoDescarte.trim(),
+    }).eq('id', id)
+    await supabase.from('interactions').insert({
+      client_id: id,
+      type: 'note',
+      content: `❌ Descartado: ${motivoDescarte.trim()}`
+    })
+    setModalDescarte(false)
+    setMotivoDescarte('')
+    await cargar()
   }
 
   async function guardarNota() {
@@ -197,6 +215,11 @@ export default function ClienteDetail() {
               {client.calificacion && (
                 <Text style={{ fontSize: 12 }}>{'⭐'.repeat(client.calificacion)}</Text>
               )}
+              {client.motivo_descarte && (
+                <View style={[styles.badge, { backgroundColor: T.redDim }]}>
+                  <Text style={[styles.badgeText, { color: T.red }]}>❌ Descartado</Text>
+                </View>
+              )}
               {client.docs_received && <Text style={styles.docsTag}>📄 Docs ✓</Text>}
               {client.sold && <Text style={styles.soldTag}>✅ Vendido</Text>}
             </View>
@@ -271,15 +294,25 @@ export default function ClienteDetail() {
 
       <View style={styles.secondActions}>
         <TouchableOpacity style={styles.secBtn} onPress={abrirWhatsApp}>
-          <Text style={[styles.secBtnText, { color: '#25D366' }]}>💬 Abrir WhatsApp</Text>
+          <Text style={[styles.secBtnText, { color: '#25D366' }]}>💬 WhatsApp</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secBtn} onPress={llamar}>
           <Text style={[styles.secBtnText, { color: T.green }]}>📞 Llamar</Text>
         </TouchableOpacity>
-        {!client.sold && (
+        {!client.sold && !client.motivo_descarte && (
           <TouchableOpacity style={[styles.secBtn, { backgroundColor: T.accentDim, borderColor: T.accent + '44' }]} onPress={marcarVendido}>
             <Text style={[styles.secBtnText, { color: T.accentText }]}>🏆 Vendido</Text>
           </TouchableOpacity>
+        )}
+        {!client.sold && !client.motivo_descarte && (
+          <TouchableOpacity style={[styles.secBtn, { borderColor: T.red + '44' }]} onPress={() => setModalDescarte(true)}>
+            <Text style={[styles.secBtnText, { color: T.red }]}>❌ Descartar</Text>
+          </TouchableOpacity>
+        )}
+        {client.motivo_descarte && (
+          <View style={[styles.secBtn, { backgroundColor: T.redDim, borderColor: T.red + '44' }]}>
+            <Text style={[styles.secBtnText, { color: T.red }]}>❌ Descartado</Text>
+          </View>
         )}
       </View>
 
@@ -298,18 +331,19 @@ export default function ClienteDetail() {
           <>
             <View style={styles.infoCard}>
               {[
-                { label: 'Teléfono',         value: client.phone },
-                { label: 'Vehículo',         value: client.vehicle_interest },
-                { label: 'Presupuesto',      value: formatDual(client.budget), accent: true },
-                { label: 'Trabajo',          value: client.job },
-                { label: 'Cumpleaños',       value: client.birthday },
-                { label: 'Club',             value: client.club },
-                { label: 'Etapa',            value: client.etapa ? etapaLabel[client.etapa] : null },
-                { label: 'Origen',           value: client.origen ? origenLabel[client.origen] : null },
-                { label: 'Calificación',     value: client.calificacion ? '⭐'.repeat(client.calificacion) : null },
-                { label: 'Comentario clave', value: client.comentario_clave },
-                { label: 'Notas',            value: client.notes },
-                { label: 'Contactos',        value: `${client.contact_count} realizados` },
+                { label: 'Teléfono',          value: client.phone },
+                { label: 'Vehículo',          value: client.vehicle_interest },
+                { label: 'Presupuesto',       value: formatDual(client.budget), accent: true },
+                { label: 'Trabajo',           value: client.job },
+                { label: 'Cumpleaños',        value: client.birthday },
+                { label: 'Club',              value: client.club },
+                { label: 'Etapa',             value: client.etapa ? etapaLabel[client.etapa] : null },
+                { label: 'Origen',            value: client.origen ? origenLabel[client.origen] : null },
+                { label: 'Calificación',      value: client.calificacion ? '⭐'.repeat(client.calificacion) : null },
+                { label: 'Comentario clave',  value: client.comentario_clave },
+                { label: 'Motivo descarte',   value: client.motivo_descarte },
+                { label: 'Notas',             value: client.notes },
+                { label: 'Contactos',         value: `${client.contact_count} realizados` },
               ].filter(r => r.value).map((r, i, arr) => (
                 <View key={r.label} style={[styles.infoRow, i === arr.length-1 && { borderBottomWidth: 0 }]}>
                   <Text style={styles.infoLabel}>{r.label}</Text>
@@ -318,7 +352,7 @@ export default function ClienteDetail() {
               ))}
             </View>
 
-            {!client.sold && (
+            {!client.sold && !client.motivo_descarte && (
               <>
                 <Text style={styles.sectionLabel}>CALIFICACIÓN DEL LEAD</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
@@ -404,6 +438,55 @@ export default function ClienteDetail() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={modalDescarte} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitulo}>¿Por qué descartás este lead?</Text>
+            <View style={{ gap: 8, marginBottom: 16 }}>
+              {[
+                'No califica para crédito',
+                'Compró en otra concesionaria',
+                'No tiene presupuesto',
+                'Ya no está interesado',
+                'No responde',
+                'Otro motivo',
+              ].map(m => (
+                <TouchableOpacity
+                  key={m}
+                  style={{
+                    padding: 12, borderRadius: 10, borderWidth: 1,
+                    backgroundColor: motivoDescarte === m ? T.redDim : T.bg,
+                    borderColor: motivoDescarte === m ? T.red : T.border,
+                  }}
+                  onPress={() => setMotivoDescarte(m)}
+                >
+                  <Text style={{ color: motivoDescarte === m ? T.red : T.text, fontWeight: '600', fontSize: 13 }}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.notaInput}
+              placeholder="O escribí tu propio motivo..."
+              placeholderTextColor={T.muted}
+              value={motivoDescarte}
+              onChangeText={setMotivoDescarte}
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.btnCancelar} onPress={() => { setModalDescarte(false); setMotivoDescarte('') }}>
+                <Text style={styles.btnCancelarText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnGuardar, { backgroundColor: T.red }, !motivoDescarte.trim() && { opacity: 0.5 }]}
+                onPress={descartarCliente}
+                disabled={!motivoDescarte.trim()}
+              >
+                <Text style={styles.btnGuardarText}>Descartar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -443,9 +526,9 @@ const styles = StyleSheet.create({
   qaBtn:                 { flex: 1, alignItems: 'center', padding: 10, borderRadius: 12 },
   qaIcon:                { fontSize: 18 },
   qaLabel:               { fontSize: 9, fontWeight: '700', marginTop: 3 },
-  secondActions:         { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: T.border },
-  secBtn:                { flex: 1, backgroundColor: T.white, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 0.5, borderColor: T.border },
-  secBtnText:            { fontSize: 11, fontWeight: '700' },
+  secondActions:         { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 6, borderBottomWidth: 0.5, borderBottomColor: T.border, flexWrap: 'wrap' },
+  secBtn:                { flex: 1, backgroundColor: T.white, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 0.5, borderColor: T.border, minWidth: 80 },
+  secBtnText:            { fontSize: 10, fontWeight: '700' },
   tabs:                  { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: T.border, backgroundColor: T.white },
   tabBtn:                { flex: 1, padding: 12, alignItems: 'center' },
   tabBtnActive:          { borderBottomWidth: 2, borderBottomColor: T.accent },
@@ -469,8 +552,8 @@ const styles = StyleSheet.create({
   modalOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard:             { backgroundColor: T.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalTitulo:           { color: T.text, fontSize: 18, fontWeight: '800', marginBottom: 16 },
-  notaInput:             { backgroundColor: T.bg, borderRadius: 10, padding: 12, color: T.text, fontSize: 14, borderWidth: 0.5, borderColor: T.border, minHeight: 100, textAlignVertical: 'top' },
-  modalBtns:             { flexDirection: 'row', gap: 10, marginTop: 16 },
+  notaInput:             { backgroundColor: T.bg, borderRadius: 10, padding: 12, color: T.text, fontSize: 14, borderWidth: 0.5, borderColor: T.border, minHeight: 80, textAlignVertical: 'top', marginBottom: 8 },
+  modalBtns:             { flexDirection: 'row', gap: 10, marginTop: 8 },
   btnCancelar:           { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.bg, borderWidth: 0.5, borderColor: T.border },
   btnCancelarText:       { color: T.muted, fontWeight: '700' },
   btnGuardar:            { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent },
