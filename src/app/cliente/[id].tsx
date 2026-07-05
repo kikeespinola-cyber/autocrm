@@ -194,6 +194,9 @@ export default function ClienteDetail() {
                   <Text style={[styles.badgeText, { color: T.textSub }]}>{etapaLabel[client.etapa]}</Text>
                 </View>
               )}
+              {client.calificacion && (
+                <Text style={{ fontSize: 12 }}>{'⭐'.repeat(client.calificacion)}</Text>
+              )}
               {client.docs_received && <Text style={styles.docsTag}>📄 Docs ✓</Text>}
               {client.sold && <Text style={styles.soldTag}>✅ Vendido</Text>}
             </View>
@@ -202,11 +205,7 @@ export default function ClienteDetail() {
 
         {client.vehicle_photo_url ? (
           <TouchableOpacity onPress={subirFotoVehiculo} style={styles.fotoVehiculoContainer}>
-            <Image
-              source={{ uri: client.vehicle_photo_url }}
-              style={styles.fotoVehiculo}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: client.vehicle_photo_url }} style={styles.fotoVehiculo} resizeMode="cover" />
             <View style={styles.fotoVehiculoEdit}>
               <Text style={{ fontSize: 12, color: '#fff', fontWeight: '700' }}>
                 {subiendoFoto ? '⏳ Subiendo...' : '📷 Cambiar foto'}
@@ -232,7 +231,6 @@ export default function ClienteDetail() {
         </View>
       )}
 
-      {/* IA colapsable */}
       <TouchableOpacity style={styles.iaStrip} onPress={() => setIaExpandida(!iaExpandida)} activeOpacity={0.8}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={styles.iaTitle}>✦ SUGERENCIA IA</Text>
@@ -308,6 +306,7 @@ export default function ClienteDetail() {
                 { label: 'Club',             value: client.club },
                 { label: 'Etapa',            value: client.etapa ? etapaLabel[client.etapa] : null },
                 { label: 'Origen',           value: client.origen ? origenLabel[client.origen] : null },
+                { label: 'Calificación',     value: client.calificacion ? '⭐'.repeat(client.calificacion) : null },
                 { label: 'Comentario clave', value: client.comentario_clave },
                 { label: 'Notas',            value: client.notes },
                 { label: 'Contactos',        value: `${client.contact_count} realizados` },
@@ -321,6 +320,27 @@ export default function ClienteDetail() {
 
             {!client.sold && (
               <>
+                <Text style={styles.sectionLabel}>CALIFICACIÓN DEL LEAD</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <TouchableOpacity
+                      key={n}
+                      onPress={async () => {
+                        await supabase.from('clients').update({ calificacion: n }).eq('id', id)
+                        setClient(prev => prev ? { ...prev, calificacion: n } : prev)
+                      }}
+                      style={{
+                        flex: 1, padding: 10, borderRadius: 10, alignItems: 'center',
+                        backgroundColor: (client.calificacion || 0) >= n ? '#FCD34D' : T.bg,
+                        borderWidth: 1, borderColor: '#FCD34D80',
+                      }}
+                    >
+                      <Text style={{ fontSize: 18 }}>⭐</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: (client.calificacion || 0) >= n ? '#92400E' : T.muted }}>{n}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
                 <Text style={styles.sectionLabel}>TEMPERATURA</Text>
                 <View style={styles.tempRow}>
                   {(['hot','warm','cold'] as const).map(t => (
