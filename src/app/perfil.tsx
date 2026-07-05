@@ -58,6 +58,8 @@ export default function PerfilScreen() {
   const [avatarUrl, setAvatarUrl]           = useState<string | null>(null)
   const [isAdmin, setIsAdmin]               = useState(false)
   const [racha, setRacha]                   = useState(0)
+  const [diasTrial, setDiasTrial]           = useState<number | null>(null)
+  const [statusSub, setStatusSub]           = useState<string>('')
   const [guardando, setGuardando]           = useState(false)
   const [subiendoFoto, setSubiendoFoto]     = useState(false)
 
@@ -71,7 +73,7 @@ export default function PerfilScreen() {
 
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin, racha_dias')
+      .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin, racha_dias, status, current_period_end')
       .eq('user_id', user?.id)
       .single()
 
@@ -82,6 +84,11 @@ export default function PerfilScreen() {
       setAvatarUrl(sub.avatar_url || null)
       setIsAdmin(sub.is_admin || false)
       setRacha(sub.racha_dias || 0)
+      setStatusSub(sub.status || '')
+      if (sub.status === 'trial' && sub.current_period_end) {
+        const dias = Math.ceil((new Date(sub.current_period_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        setDiasTrial(dias)
+      }
     }
 
     if (user?.id) {
@@ -192,6 +199,28 @@ export default function PerfilScreen() {
           <Text style={{ fontSize: 18 }}>✏️</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Trial banner */}
+      {statusSub === 'trial' && diasTrial !== null && (
+        <TouchableOpacity
+          style={[styles.trialCard, { borderColor: diasTrial <= 3 ? T.red + '44' : T.warm + '44' }]}
+          onPress={() => {
+            if (typeof window !== 'undefined') {
+              window.open('https://wa.me/595985715389?text=Hola%2C%20quiero%20continuar%20usando%20Vendix', '_blank')
+            }
+          }}
+        >
+          <Text style={{ fontSize: 20 }}>{diasTrial <= 3 ? '🔴' : '⏳'}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.trialTitulo, { color: diasTrial <= 3 ? T.red : T.warm }]}>
+              {diasTrial <= 0 ? 'Tu prueba venció' : `Te quedan ${diasTrial} día${diasTrial !== 1 ? 's' : ''} de prueba`}
+            </Text>
+            <Text style={styles.trialSub}>
+              {diasTrial <= 3 ? 'Tocá aquí para continuar usando Vendix →' : 'Prueba gratuita activa · Tocá para activar tu plan'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Racha */}
       <View style={styles.rachaCard}>
@@ -381,6 +410,9 @@ const styles = StyleSheet.create({
   marcaNombre:       { fontSize: 11, fontWeight: '700' },
   marcaBadge:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginTop: 6, alignSelf: 'flex-start' },
   marcaBadgeText:    { color: '#fff', fontSize: 10, fontWeight: '800' },
+  trialCard:         { backgroundColor: T.white, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, borderWidth: 1 },
+  trialTitulo:       { fontSize: 14, fontWeight: '800' },
+  trialSub:          { color: T.muted, fontSize: 11, marginTop: 2 },
   rachaCard:         { backgroundColor: T.white, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
   rachaNum:          { color: T.text, fontSize: 16, fontWeight: '800' },
   rachaSub:          { color: T.muted, fontSize: 12, marginTop: 3 },

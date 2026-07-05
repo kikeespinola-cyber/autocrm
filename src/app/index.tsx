@@ -11,6 +11,8 @@ import { supabase } from '../lib/supabase'
 import Tooltip from '../components/Tooltip'
 import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
 
+let _accesoVerificado = false
+
 export default function HoyScreen() {
   const router = useRouter()
   const [clients, setClients]               = useState<Client[]>([])
@@ -23,6 +25,8 @@ export default function HoyScreen() {
     pedirPermisos().then(granted => {
       if (granted) programarRecordatorioDiario()
     })
+    // Resetear flag al montar (nueva sesión)
+    _accesoVerificado = false
   }, [])
 
   useFocusEffect(
@@ -31,8 +35,34 @@ export default function HoyScreen() {
       tooltipVisto('tu_dia').then(visto => {
         if (!visto) setMostrarTooltip(true)
       })
+      verificarAcceso()
     }, [])
   )
+
+  async function verificarAcceso() {
+    if (_accesoVerificado) return
+    _accesoVerificado = true
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data } = await supabase
+      .from('subscriptions')
+      .select('onboarding_completado, status, current_period_end')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!data) return
+
+    if (data.status === 'trial' && data.current_period_end) {
+      const vencio = new Date(data.current_period_end) < new Date()
+      if (vencio) { router.replace('/trial-vencido'); return }
+    }
+
+    if (!data.onboarding_completado) {
+      router.replace('/onboarding')
+    }
+  }
 
   async function cargar() {
     try {

@@ -17,7 +17,7 @@ export default function Layout() {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'TOKEN_REFRESHED') return
+      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return
       setSession(session)
     })
     return () => subscription.unsubscribe()
@@ -48,10 +48,11 @@ export default function Layout() {
     )
   }
 
-  const inLogin      = segments[0] === 'login'
-  const inOnboarding = segments[0] === 'onboarding'
-  const inRegistro   = segments[0] === 'registro'
-  const ocultarTabs  = inLogin || inOnboarding || inRegistro
+  const inLogin        = segments[0] === 'login'
+  const inOnboarding   = segments[0] === 'onboarding'
+  const inRegistro     = segments[0] === 'registro'
+  const inTrialVencido = segments[0] === 'trial-vencido'
+  const ocultarTabs    = inLogin || inOnboarding || inRegistro || inTrialVencido
 
   return (
     <Tabs
@@ -85,6 +86,7 @@ export default function Layout() {
       <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="registro" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="trial-vencido" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="anuncios" options={{ href: null, headerShown: true }} />
