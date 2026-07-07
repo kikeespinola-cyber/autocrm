@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { T } from '../lib/theme'
 import { supabase } from '../lib/supabase'
 
@@ -17,22 +17,37 @@ const OBJETIVOS = [
 ]
 
 export default function AnunciosScreen() {
-  const [vehiculo, setVehiculo] = useState('')
-  const [precio, setPrecio]     = useState('')
-  const [red, setRed]           = useState<string | null>(null)
-  const [objetivo, setObjetivo] = useState<string | null>(null)
-  const [extra, setExtra]       = useState('')
-  const [anuncio, setAnuncio]   = useState('')
-  const [cargando, setCargando] = useState(false)
-  const [copiado, setCopiado]   = useState(false)
+  const [vehiculo, setVehiculo]   = useState('')
+  const [precio, setPrecio]       = useState('')
+  const [red, setRed]             = useState<string | null>(null)
+  const [objetivo, setObjetivo]   = useState<string | null>(null)
+  const [extra, setExtra]         = useState('')
+  const [anuncio, setAnuncio]     = useState('')
+  const [cargando, setCargando]   = useState(false)
+  const [copiado, setCopiado]     = useState(false)
+  const [historial, setHistorial] = useState<any[]>([])
+  const [verHistorial, setVerHistorial] = useState(false)
+
+  useEffect(() => { cargarHistorial() }, [])
+
+  async function cargarHistorial() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('anuncios_historial')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (data) setHistorial(data)
+  }
 
   async function generarAnuncio() {
     if (!vehiculo.trim()) return
     setCargando(true)
     setAnuncio('')
 
-    const redLabel = REDES.find(r => r.key === red)?.label || 'redes sociales'
-    const objLabel = OBJETIVOS.find(o => o.key === objetivo)?.label || 'generar consulta'
+    const redLabel  = REDES.find(r => r.key === red)?.label || 'redes sociales'
+    const objLabel  = OBJETIVOS.find(o => o.key === objetivo)?.label || 'generar consulta'
 
     const prompt = `Sos un experto en marketing automotriz en Paraguay. Generá un anuncio para ${redLabel} con el objetivo de ${objLabel}.
 
@@ -62,7 +77,19 @@ Respondé SOLO con el texto del anuncio, sin explicaciones ni comentarios adicio
         }
       })
       if (error) throw error
-      setAnuncio(data?.sugerencia || 'No se pudo generar el anuncio.')
+      const texto = data?.sugerencia || 'No se pudo generar el anuncio.'
+      setAnuncio(texto)
+
+      // Guardar en historial
+      const { data: { user } } = await supabase.auth.getUser()
+      await supabase.from('anuncios_historial').insert({
+        user_id: user?.id,
+        vehiculo: vehiculo.trim(),
+        red: red || null,
+        objetivo: objetivo || null,
+        texto,
+      })
+      await cargarHistorial()
     } catch (e) {
       setAnuncio('Error al generar el anuncio. Intentá de nuevo.')
     } finally {
@@ -70,9 +97,9 @@ Respondé SOLO con el texto del anuncio, sin explicaciones ni comentarios adicio
     }
   }
 
-  function copiar() {
+  function copiar(texto: string) {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(anuncio)
+      navigator.clipboard.writeText(texto)
       setCopiado(true)
       setTimeout(() => setCopiado(false), 2000)
     }
@@ -80,110 +107,160 @@ Respondé SOLO con el texto del anuncio, sin explicaciones ni comentarios adicio
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.titulo}>Generador de anuncios</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <Text style={styles.titulo}>Generador de anuncios</Text>
+        <TouchableOpacity onPress={() => setVerHistorial(!verHistorial)}>
+          <Text style={{ color: T.accent, fontSize: 12, fontWeight: '700' }}>
+            {verHistorial ? '✏️ Nuevo' : `📋 Historial (${historial.length})`}
+          </Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.sub}>Creá el texto perfecto para tu pauta en redes.</Text>
 
-      <Text style={styles.sectionLabel}>VEHÍCULO</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ej: Toyota Hilux GR-S 2024, 4x4 automático"
-        placeholderTextColor={T.muted}
-        value={vehiculo}
-        onChangeText={setVehiculo}
-      />
+      {verHistorial ? (
+        <>
+          <Text style={styles.sectionLabel}>ANUNCIOS GENERADOS</Text>
+          {historial.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={{ fontSize: 32 }}>📢</Text>
+              <Text style={styles.emptyText}>Sin anuncios todavía</Text>
+              <Text style={styles.emptySub}>Generá tu primer anuncio con IA</Text>
+            </View>
+          ) : historial.map(h => (
+            <View key={h.id} style={styles.historialCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={styles.historialVehiculo}>{h.vehiculo}</Text>
+                <Text style={styles.historialFecha}>
+                  {new Date(h.created_at).toLocaleDateString('es-PY')}
+                </Text>
+              </View>
+              {h.red && (
+                <Text style={styles.historialMeta}>
+                  {REDES.find(r => r.key === h.red)?.label} · {OBJETIVOS.find(o => o.key === h.objetivo)?.label}
+                </Text>
+              )}
+              <Text style={styles.historialTexto} numberOfLines={3}>{h.texto}</Text>
+              <TouchableOpacity style={styles.historialCopyBtn} onPress={() => copiar(h.texto)}>
+                <Text style={styles.historialCopyText}>📋 Copiar</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </>
+      ) : (
+        <>
+          <Text style={styles.sectionLabel}>VEHÍCULO</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: Toyota Hilux GR-S 2024, 4x4 automático"
+            placeholderTextColor={T.muted}
+            value={vehiculo}
+            onChangeText={setVehiculo}
+          />
 
-      <Text style={styles.sectionLabel}>PRECIO O FINANCIAMIENTO</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ej: Desde Gs. 180.000.000 · Entrega 20%"
-        placeholderTextColor={T.muted}
-        value={precio}
-        onChangeText={setPrecio}
-      />
+          <Text style={styles.sectionLabel}>PRECIO O FINANCIAMIENTO</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: Desde Gs. 180.000.000 · Entrega 20%"
+            placeholderTextColor={T.muted}
+            value={precio}
+            onChangeText={setPrecio}
+          />
 
-      <Text style={styles.sectionLabel}>RED SOCIAL</Text>
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-        {REDES.map(r => (
+          <Text style={styles.sectionLabel}>RED SOCIAL</Text>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            {REDES.map(r => (
+              <TouchableOpacity
+                key={r.key}
+                onPress={() => setRed(red === r.key ? null : r.key)}
+                style={{
+                  paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                  backgroundColor: red === r.key ? r.color : T.bg,
+                  borderWidth: 1, borderColor: r.color + '80',
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: red === r.key ? '#fff' : r.color }}>
+                  {r.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.sectionLabel}>OBJETIVO</Text>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            {OBJETIVOS.map(o => (
+              <TouchableOpacity
+                key={o.key}
+                onPress={() => setObjetivo(objetivo === o.key ? null : o.key)}
+                style={{
+                  paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                  backgroundColor: objetivo === o.key ? T.accent : T.bg,
+                  borderWidth: 1, borderColor: T.accent + '80',
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: objetivo === o.key ? '#fff' : T.accentText }}>
+                  {o.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.sectionLabel}>ALGO MÁS QUE AGREGAR (opcional)</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 70, textAlignVertical: 'top' }]}
+            placeholder="Ej: Color blanco perla, único dueño, service al día"
+            placeholderTextColor={T.muted}
+            value={extra}
+            onChangeText={setExtra}
+            multiline
+          />
+
           <TouchableOpacity
-            key={r.key}
-            onPress={() => setRed(red === r.key ? null : r.key)}
-            style={{
-              paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: red === r.key ? r.color : T.bg,
-              borderWidth: 1, borderColor: r.color + '80',
-            }}
+            style={[styles.btnGenerar, (!vehiculo.trim() || cargando) && { opacity: 0.5 }]}
+            onPress={generarAnuncio}
+            disabled={cargando || !vehiculo.trim()}
           >
-            <Text style={{ fontSize: 13, fontWeight: '700', color: red === r.key ? '#fff' : r.color }}>
-              {r.label}
+            <Text style={styles.btnGenerarText}>
+              {cargando ? '✦ Generando...' : '✦ Generar anuncio con IA'}
             </Text>
           </TouchableOpacity>
-        ))}
-      </View>
 
-      <Text style={styles.sectionLabel}>OBJETIVO</Text>
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-        {OBJETIVOS.map(o => (
-          <TouchableOpacity
-            key={o.key}
-            onPress={() => setObjetivo(objetivo === o.key ? null : o.key)}
-            style={{
-              paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: objetivo === o.key ? T.accent : T.bg,
-              borderWidth: 1, borderColor: T.accent + '80',
-            }}
-          >
-            <Text style={{ fontSize: 13, fontWeight: '700', color: objetivo === o.key ? '#fff' : T.accentText }}>
-              {o.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.sectionLabel}>ALGO MÁS QUE AGREGAR (opcional)</Text>
-      <TextInput
-        style={[styles.input, { minHeight: 70, textAlignVertical: 'top' }]}
-        placeholder="Ej: Color blanco perla, único dueño, service al día"
-        placeholderTextColor={T.muted}
-        value={extra}
-        onChangeText={setExtra}
-        multiline
-      />
-
-      <TouchableOpacity
-        style={[styles.btnGenerar, (!vehiculo.trim() || cargando) && { opacity: 0.5 }]}
-        onPress={generarAnuncio}
-        disabled={cargando || !vehiculo.trim()}
-      >
-        <Text style={styles.btnGenerarText}>
-          {cargando ? '✦ Generando...' : '✦ Generar anuncio con IA'}
-        </Text>
-      </TouchableOpacity>
-
-      {anuncio ? (
-        <View style={styles.resultCard}>
-          <Text style={styles.resultLabel}>ANUNCIO GENERADO</Text>
-          <Text style={styles.resultText}>{anuncio}</Text>
-          <TouchableOpacity style={styles.copyBtn} onPress={copiar}>
-            <Text style={styles.copyBtnText}>{copiado ? '✅ Copiado' : '📋 Copiar anuncio'}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+          {anuncio ? (
+            <View style={styles.resultCard}>
+              <Text style={styles.resultLabel}>ANUNCIO GENERADO</Text>
+              <Text style={styles.resultText}>{anuncio}</Text>
+              <TouchableOpacity style={styles.copyBtn} onPress={() => copiar(anuncio)}>
+                <Text style={styles.copyBtnText}>{copiado ? '✅ Copiado' : '📋 Copiar anuncio'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </>
+      )}
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: T.bg },
-  content:        { padding: 20, paddingTop: 20, paddingBottom: 60 },
-  titulo:         { color: T.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  sub:            { color: T.muted, fontSize: 12, marginTop: 4, marginBottom: 20, fontWeight: '500' },
-  sectionLabel:   { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 8, marginTop: 16 },
-  input:          { backgroundColor: T.white, borderRadius: 10, padding: 12, color: T.text, fontSize: 14, borderWidth: 0.5, borderColor: T.border, marginBottom: 4 },
-  btnGenerar:     { backgroundColor: T.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 24 },
-  btnGenerarText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  resultCard:     { backgroundColor: T.white, borderRadius: 14, padding: 16, marginTop: 20, borderWidth: 0.5, borderColor: T.border },
-  resultLabel:    { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
-  resultText:     { color: T.text, fontSize: 14, lineHeight: 22 },
-  copyBtn:        { backgroundColor: T.accent, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 14 },
-  copyBtnText:    { color: '#fff', fontSize: 13, fontWeight: '800' },
+  container:          { flex: 1, backgroundColor: T.bg },
+  content:            { padding: 20, paddingTop: 20, paddingBottom: 60 },
+  titulo:             { color: T.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  sub:                { color: T.muted, fontSize: 12, marginTop: 4, marginBottom: 20, fontWeight: '500' },
+  sectionLabel:       { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 8, marginTop: 16 },
+  input:              { backgroundColor: T.white, borderRadius: 10, padding: 12, color: T.text, fontSize: 14, borderWidth: 0.5, borderColor: T.border, marginBottom: 4 },
+  btnGenerar:         { backgroundColor: T.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 24 },
+  btnGenerarText:     { color: '#fff', fontSize: 15, fontWeight: '800' },
+  resultCard:         { backgroundColor: T.white, borderRadius: 14, padding: 16, marginTop: 20, borderWidth: 0.5, borderColor: T.border },
+  resultLabel:        { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
+  resultText:         { color: T.text, fontSize: 14, lineHeight: 22 },
+  copyBtn:            { backgroundColor: T.accent, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 14 },
+  copyBtnText:        { color: '#fff', fontSize: 13, fontWeight: '800' },
+  historialCard:      { backgroundColor: T.white, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: T.border },
+  historialVehiculo:  { color: T.text, fontSize: 13, fontWeight: '700' },
+  historialFecha:     { color: T.muted, fontSize: 11 },
+  historialMeta:      { color: T.accent, fontSize: 11, fontWeight: '600', marginBottom: 8 },
+  historialTexto:     { color: T.textSub, fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  historialCopyBtn:   { backgroundColor: T.accentDim, borderRadius: 8, padding: 8, alignItems: 'center' },
+  historialCopyText:  { color: T.accentText, fontSize: 12, fontWeight: '700' },
+  empty:              { alignItems: 'center', marginTop: 40, gap: 8 },
+  emptyText:          { color: T.text, fontSize: 16, fontWeight: '700' },
+  emptySub:           { color: T.muted, fontSize: 13 },
 })
