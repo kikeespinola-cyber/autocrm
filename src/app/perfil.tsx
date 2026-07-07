@@ -60,6 +60,9 @@ export default function PerfilScreen() {
   const [racha, setRacha]                   = useState(0)
   const [diasTrial, setDiasTrial]           = useState<number | null>(null)
   const [statusSub, setStatusSub]           = useState<string>('')
+  const [metaMensual, setMetaMensual]       = useState(0)
+  const [editandoMeta, setEditandoMeta]     = useState(false)
+  const [metaInput, setMetaInput]           = useState('')
   const [guardando, setGuardando]           = useState(false)
   const [subiendoFoto, setSubiendoFoto]     = useState(false)
 
@@ -76,7 +79,7 @@ export default function PerfilScreen() {
 
       const { data: sub } = await supabase
         .from('subscriptions')
-        .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin, racha_dias, status, current_period_end')
+        .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin, racha_dias, status, current_period_end, meta_mensual')
         .eq('user_id', user.id)
         .single()
 
@@ -88,6 +91,7 @@ export default function PerfilScreen() {
         setIsAdmin(sub.is_admin || false)
         setRacha(sub.racha_dias || 0)
         setStatusSub(sub.status || '')
+        setMetaMensual(sub.meta_mensual || 0)
         if (sub.status === 'trial' && sub.current_period_end) {
           const dias = Math.ceil((new Date(sub.current_period_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
           setDiasTrial(dias)
@@ -140,6 +144,14 @@ export default function PerfilScreen() {
     await cargar()
   }
 
+  async function guardarMeta() {
+    const meta = parseInt(metaInput) || 0
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('subscriptions').update({ meta_mensual: meta }).eq('user_id', user?.id)
+    setMetaMensual(meta)
+    setEditandoMeta(false)
+  }
+
   async function cerrarSesion() {
     const confirmar = typeof window !== 'undefined' ? window.confirm('¿Cerrar sesión?') : false
     if (!confirmar) return
@@ -165,6 +177,7 @@ export default function PerfilScreen() {
   const marcaColor   = marcaVehiculo ? (MARCA_COLORES[marcaVehiculo] || T.accent) : T.accent
   const marcaLogo    = marcaVehiculo ? MARCA_LOGOS[marcaVehiculo] : null
   const insignias    = calcularInsignias(racha, vendidos.length, clients.length)
+  const pctMeta      = metaMensual > 0 ? Math.min(Math.round((vendidos.length / metaMensual) * 100), 100) : 0
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -237,6 +250,41 @@ export default function PerfilScreen() {
              '⚡ Imparable — 30+ días de racha'}
           </Text>
         </View>
+      </View>
+
+      <Text style={styles.sectionLabel}>META DEL MES</Text>
+      <View style={styles.metaCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <View>
+            <Text style={styles.metaNum}>
+              {vendidos.length}
+              {metaMensual > 0 ? <Text style={{ fontSize: 18, color: T.muted, fontWeight: '400' }}> / {metaMensual}</Text> : null}
+            </Text>
+            <Text style={styles.metaLabel}>ventas cerradas este mes</Text>
+          </View>
+          <TouchableOpacity onPress={() => { setMetaInput(String(metaMensual || '')); setEditandoMeta(true) }}>
+            <Text style={{ fontSize: 22 }}>🎯</Text>
+          </TouchableOpacity>
+        </View>
+        {metaMensual > 0 ? (
+          <>
+            <View style={styles.metaBarBg}>
+              <View style={[styles.metaBarFill, {
+                width: `${pctMeta}%` as any,
+                backgroundColor: vendidos.length >= metaMensual ? T.green : T.accent,
+              }]} />
+            </View>
+            <Text style={[styles.metaPct, { color: vendidos.length >= metaMensual ? T.green : T.accent }]}>
+              {vendidos.length >= metaMensual
+                ? '🏆 ¡Meta alcanzada!'
+                : `${pctMeta}% completado — te faltan ${metaMensual - vendidos.length} venta${metaMensual - vendidos.length !== 1 ? 's' : ''}`}
+            </Text>
+          </>
+        ) : (
+          <TouchableOpacity onPress={() => { setMetaInput(''); setEditandoMeta(true) }}>
+            <Text style={{ color: T.accent, fontSize: 13, fontWeight: '700' }}>+ Fijar meta del mes</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <Text style={styles.sectionLabel}>TUS INSIGNIAS</Text>
@@ -334,6 +382,7 @@ export default function PerfilScreen() {
 
       <Text style={styles.footer}>Vendix · Vendé con inteligencia.</Text>
 
+      {/* Modal editar perfil */}
       <Modal visible={modalPerfil} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <ScrollView>
@@ -341,22 +390,10 @@ export default function PerfilScreen() {
               <Text style={styles.modalTitulo}>Tu perfil</Text>
 
               <Text style={styles.inputLabel}>Nombre</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ej: Carlos Mendoza"
-                placeholderTextColor={T.muted}
-                value={nombreVendedor}
-                onChangeText={setNombreVendedor}
-              />
+              <TextInput style={styles.input} placeholder="Ej: Carlos Mendoza" placeholderTextColor={T.muted} value={nombreVendedor} onChangeText={setNombreVendedor} />
 
               <Text style={styles.inputLabel}>Concesionaria</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ej: Auto Americana"
-                placeholderTextColor={T.muted}
-                value={concesionaria}
-                onChangeText={setConcesionaria}
-              />
+              <TextInput style={styles.input} placeholder="Ej: Auto Americana" placeholderTextColor={T.muted} value={concesionaria} onChangeText={setConcesionaria} />
 
               <Text style={styles.inputLabel}>Marca que vendés</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
@@ -397,6 +434,33 @@ export default function PerfilScreen() {
         </View>
       </Modal>
 
+      {/* Modal meta mensual */}
+      <Modal visible={editandoMeta} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitulo}>🎯 Meta del mes</Text>
+            <Text style={{ color: T.muted, fontSize: 13, marginBottom: 16 }}>¿Cuántas ventas querés cerrar este mes?</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ej: 5"
+              placeholderTextColor={T.muted}
+              value={metaInput}
+              onChangeText={setMetaInput}
+              keyboardType="numeric"
+              autoFocus
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.btnCancelar} onPress={() => setEditandoMeta(false)}>
+                <Text style={styles.btnCancelarText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnGuardar} onPress={guardarMeta}>
+                <Text style={styles.btnGuardarText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   )
 }
@@ -425,6 +489,12 @@ const styles = StyleSheet.create({
   rachaCard:         { backgroundColor: T.white, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
   rachaNum:          { color: T.text, fontSize: 16, fontWeight: '800' },
   rachaSub:          { color: T.muted, fontSize: 12, marginTop: 3 },
+  metaCard:          { backgroundColor: T.white, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
+  metaNum:           { color: T.text, fontSize: 32, fontWeight: '800', letterSpacing: -1 },
+  metaLabel:         { color: T.muted, fontSize: 12, marginTop: 2 },
+  metaBarBg:         { height: 8, backgroundColor: T.bg, borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
+  metaBarFill:       { height: 8, borderRadius: 4 },
+  metaPct:           { fontSize: 12, fontWeight: '600' },
   insigniasGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   insigniaCard:      { width: '31%', backgroundColor: T.white, borderRadius: 12, padding: 10, alignItems: 'center', borderWidth: 0.5, borderColor: T.border },
   insigniaEmoji:     { fontSize: 24, marginBottom: 6 },
