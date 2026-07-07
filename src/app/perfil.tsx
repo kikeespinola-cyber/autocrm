@@ -66,34 +66,38 @@ export default function PerfilScreen() {
   useEffect(() => { cargar() }, [])
 
   async function cargar() {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
-    const data = await getClients()
-    setClients(data)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUser(user)
 
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin, racha_dias, status, current_period_end')
-      .eq('user_id', user?.id)
-      .single()
+      const data = await getClients()
+      setClients(data)
 
-    if (sub) {
-      setNombreVendedor(sub.nombre_vendedor || '')
-      setConcesionaria(sub.concesionaria || '')
-      setMarcaVehiculo(sub.marca_vehiculo || '')
-      setAvatarUrl(sub.avatar_url || null)
-      setIsAdmin(sub.is_admin || false)
-      setRacha(sub.racha_dias || 0)
-      setStatusSub(sub.status || '')
-      if (sub.status === 'trial' && sub.current_period_end) {
-        const dias = Math.ceil((new Date(sub.current_period_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-        setDiasTrial(dias)
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('nombre_vendedor, concesionaria, marca_vehiculo, avatar_url, is_admin, racha_dias, status, current_period_end')
+        .eq('user_id', user.id)
+        .single()
+
+      if (sub) {
+        setNombreVendedor(sub.nombre_vendedor || '')
+        setConcesionaria(sub.concesionaria || '')
+        setMarcaVehiculo(sub.marca_vehiculo || '')
+        setAvatarUrl(sub.avatar_url || null)
+        setIsAdmin(sub.is_admin || false)
+        setRacha(sub.racha_dias || 0)
+        setStatusSub(sub.status || '')
+        if (sub.status === 'trial' && sub.current_period_end) {
+          const dias = Math.ceil((new Date(sub.current_period_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          setDiasTrial(dias)
+        }
       }
-    }
 
-    if (user?.id) {
       const rachaActual = await actualizarRacha(user.id)
       setRacha(rachaActual)
+    } catch (e) {
+      console.error('Error en perfil:', e)
     }
   }
 
@@ -171,7 +175,7 @@ export default function PerfilScreen() {
             <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
           ) : (
             <View style={[styles.avatarGrande, { backgroundColor: marcaColor }]}>
-              <Text style={styles.avatarLetra}>{nombre[0].toUpperCase()}</Text>
+              <Text style={styles.avatarLetra}>{nombre[0]?.toUpperCase()}</Text>
             </View>
           )}
           <View style={styles.avatarEditBadge}>
@@ -200,7 +204,6 @@ export default function PerfilScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Trial banner */}
       {statusSub === 'trial' && diasTrial !== null && (
         <TouchableOpacity
           style={[styles.trialCard, { borderColor: diasTrial <= 3 ? T.red + '44' : T.warm + '44' }]}
@@ -222,7 +225,6 @@ export default function PerfilScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Racha */}
       <View style={styles.rachaCard}>
         <Text style={{ fontSize: 28 }}>{racha >= 7 ? '🔥' : racha >= 3 ? '⚡' : '📅'}</Text>
         <View style={{ flex: 1 }}>
@@ -237,7 +239,6 @@ export default function PerfilScreen() {
         </View>
       </View>
 
-      {/* Insignias */}
       <Text style={styles.sectionLabel}>TUS INSIGNIAS</Text>
       <View style={styles.insigniasGrid}>
         {insignias.map(ins => (
@@ -298,6 +299,14 @@ export default function PerfilScreen() {
         <View>
           <Text style={styles.exportTitle}>Exportar reporte PDF</Text>
           <Text style={styles.exportSub}>Cierre de mes listo para compartir</Text>
+        </View>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.exportBtn, { borderColor: '#E1306C44' }]} onPress={() => router.push('/pautas')}>
+        <Text style={styles.exportIcon}>📊</Text>
+        <View>
+          <Text style={styles.exportTitle}>Estadísticas de pautas</Text>
+          <Text style={styles.exportSub}>Medí el retorno de tu inversión en redes</Text>
         </View>
       </TouchableOpacity>
 
