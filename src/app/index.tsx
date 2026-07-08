@@ -20,23 +20,31 @@ export default function HoyScreen() {
   const [error, setError]                   = useState<string | null>(null)
   const [mostrarTooltip, setMostrarTooltip] = useState(false)
   const [reunionesHoy, setReunionesHoy]     = useState<any[]>([])
+  const [sesionLista, setSesionLista]       = useState(false)
 
   useEffect(() => {
     pedirPermisos().then(granted => {
       if (granted) programarRecordatorioDiario()
     })
-    // Resetear flag al montar (nueva sesión)
     _accesoVerificado = false
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.replace('/login')
+      } else {
+        setSesionLista(true)
+      }
+    })
   }, [])
 
   useFocusEffect(
     React.useCallback(() => {
+      if (!sesionLista) return
       cargar()
       tooltipVisto('tu_dia').then(visto => {
         if (!visto) setMostrarTooltip(true)
       })
       verificarAcceso()
-    }, [])
+    }, [sesionLista])
   )
 
   async function verificarAcceso() {
@@ -116,6 +124,17 @@ export default function HoyScreen() {
     const mes = hoy.toLocaleString('es-PY', { month: 'short' }).toLowerCase()
     return b.includes(dia) && b.includes(mes)
   })
+
+  if (!sesionLista) {
+    return (
+      <View style={styles.loading}>
+        <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+          <Text style={{ color: '#fff', fontSize: 28, fontWeight: '900' }}>V</Text>
+        </View>
+        <Text style={{ color: T.text, fontSize: 20, fontWeight: '800' }}>Vendix</Text>
+      </View>
+    )
+  }
 
   if (error) {
     return (
