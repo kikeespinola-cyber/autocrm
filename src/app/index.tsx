@@ -16,36 +16,26 @@ let _accesoVerificado = false
 export default function HoyScreen() {
   const router = useRouter()
   const [clients, setClients]               = useState<Client[]>([])
-  const [loading, setLoading]               = useState(false)
+  const [loading, setLoading]               = useState(true)
   const [error, setError]                   = useState<string | null>(null)
   const [mostrarTooltip, setMostrarTooltip] = useState(false)
   const [reunionesHoy, setReunionesHoy]     = useState<any[]>([])
-  const [listo, setListo]                   = useState(false)
 
   useEffect(() => {
     pedirPermisos().then(granted => {
       if (granted) programarRecordatorioDiario()
     })
     _accesoVerificado = false
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.replace('/login')
-      } else {
-        setListo(true)
-        cargar()
-        tooltipVisto('tu_dia').then(visto => {
-          if (!visto) setMostrarTooltip(true)
-        })
-        verificarAcceso()
-      }
-    })
   }, [])
 
   useFocusEffect(
     React.useCallback(() => {
-      if (!listo) return
       cargar()
-    }, [listo])
+      tooltipVisto('tu_dia').then(visto => {
+        if (!visto) setMostrarTooltip(true)
+      })
+      verificarAcceso()
+    }, [])
   )
 
   async function verificarAcceso() {
@@ -127,7 +117,7 @@ export default function HoyScreen() {
     return b.includes(dia) && b.includes(mes)
   })
 
-  if (!listo) {
+  if (loading) {
     return (
       <View style={styles.loading}>
         <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
@@ -143,14 +133,6 @@ export default function HoyScreen() {
         <TouchableOpacity onPress={cargar} style={{ marginTop: 16, backgroundColor: T.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
           <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
         </TouchableOpacity>
-      </View>
-    )
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.loading}>
-        <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
       </View>
     )
   }
