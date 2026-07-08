@@ -7,7 +7,7 @@ import { T } from '../lib/theme'
 export default function Layout() {
   const router = useRouter()
   const segments = useSegments()
-  const [session, setSession] = useState<any>(null)
+  const [session, setSession] = useState<any>(undefined) // undefined = todavía no sabemos
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -36,7 +36,8 @@ export default function Layout() {
     }
   }, [session, loading])
 
-  if (loading) {
+  // Mientras cargamos, mostrar pantalla de splash
+  if (loading || session === undefined) {
     return (
       <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
@@ -90,8 +91,8 @@ export default function Layout() {
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="anuncios" options={{ href: null, headerShown: true }} />
-      <Tabs.Screen name="admin" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="pautas" options={{ href: null, headerShown: true }} />
+      <Tabs.Screen name="admin" options={{ href: null, headerShown: true }} />
     </Tabs>
   )
 }
