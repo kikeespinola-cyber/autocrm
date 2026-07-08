@@ -16,11 +16,11 @@ let _accesoVerificado = false
 export default function HoyScreen() {
   const router = useRouter()
   const [clients, setClients]               = useState<Client[]>([])
-  const [loading, setLoading]               = useState(true)
+  const [loading, setLoading]               = useState(false)
   const [error, setError]                   = useState<string | null>(null)
   const [mostrarTooltip, setMostrarTooltip] = useState(false)
   const [reunionesHoy, setReunionesHoy]     = useState<any[]>([])
-  const [sesionLista, setSesionLista]       = useState(false)
+  const [listo, setListo]                   = useState(false)
 
   useEffect(() => {
     pedirPermisos().then(granted => {
@@ -31,25 +31,21 @@ export default function HoyScreen() {
       if (!session) {
         router.replace('/login')
       } else {
-        setSesionLista(true)
+        setListo(true)
+        cargar()
+        tooltipVisto('tu_dia').then(visto => {
+          if (!visto) setMostrarTooltip(true)
+        })
+        verificarAcceso()
       }
     })
   }, [])
 
-  useEffect(() => {
-    if (!sesionLista) return
-    cargar()
-    tooltipVisto('tu_dia').then(visto => {
-      if (!visto) setMostrarTooltip(true)
-    })
-    verificarAcceso()
-  }, [sesionLista])
-
   useFocusEffect(
     React.useCallback(() => {
-      if (!sesionLista) return
+      if (!listo) return
       cargar()
-    }, [sesionLista])
+    }, [listo])
   )
 
   async function verificarAcceso() {
@@ -131,7 +127,7 @@ export default function HoyScreen() {
     return b.includes(dia) && b.includes(mes)
   })
 
-  if (!sesionLista || loading) {
+  if (!listo) {
     return (
       <View style={styles.loading}>
         <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
@@ -147,6 +143,14 @@ export default function HoyScreen() {
         <TouchableOpacity onPress={cargar} style={{ marginTop: 16, backgroundColor: T.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
           <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
         </TouchableOpacity>
+      </View>
+    )
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
       </View>
     )
   }
