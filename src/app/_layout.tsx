@@ -7,13 +7,13 @@ import { T } from '../lib/theme'
 export default function Layout() {
   const router = useRouter()
   const segments = useSegments()
-  const [session, setSession] = useState<any>(undefined) // undefined = todavía no sabemos
-  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState<any>(null)
+  const [listo, setListo] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      setLoading(false)
+      setListo(true)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -24,7 +24,7 @@ export default function Layout() {
   }, [])
 
   useEffect(() => {
-    if (loading) return
+    if (!listo) return
     const inLogin    = segments[0] === 'login'
     const inRegistro = segments[0] === 'registro'
 
@@ -34,10 +34,9 @@ export default function Layout() {
     if (session && (inLogin || inRegistro)) {
       router.replace('/')
     }
-  }, [session, loading])
+  }, [session, listo])
 
-  // Mientras cargamos, mostrar pantalla de splash
-  if (loading || session === undefined) {
+  if (!listo) {
     return (
       <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
