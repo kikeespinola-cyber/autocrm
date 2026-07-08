@@ -36,14 +36,19 @@ export default function HoyScreen() {
     })
   }, [])
 
+  useEffect(() => {
+    if (!sesionLista) return
+    cargar()
+    tooltipVisto('tu_dia').then(visto => {
+      if (!visto) setMostrarTooltip(true)
+    })
+    verificarAcceso()
+  }, [sesionLista])
+
   useFocusEffect(
     React.useCallback(() => {
       if (!sesionLista) return
       cargar()
-      tooltipVisto('tu_dia').then(visto => {
-        if (!visto) setMostrarTooltip(true)
-      })
-      verificarAcceso()
     }, [sesionLista])
   )
 
@@ -73,6 +78,7 @@ export default function HoyScreen() {
   }
 
   async function cargar() {
+    setLoading(true)
     try {
       const data = await getClients()
       setClients(data)
@@ -125,13 +131,10 @@ export default function HoyScreen() {
     return b.includes(dia) && b.includes(mes)
   })
 
-  if (!sesionLista) {
+  if (!sesionLista || loading) {
     return (
       <View style={styles.loading}>
-        <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-          <Text style={{ color: '#fff', fontSize: 28, fontWeight: '900' }}>V</Text>
-        </View>
-        <Text style={{ color: T.text, fontSize: 20, fontWeight: '800' }}>Vendix</Text>
+        <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
       </View>
     )
   }
@@ -144,14 +147,6 @@ export default function HoyScreen() {
         <TouchableOpacity onPress={cargar} style={{ marginTop: 16, backgroundColor: T.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
           <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
         </TouchableOpacity>
-      </View>
-    )
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.loading}>
-        <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
       </View>
     )
   }
