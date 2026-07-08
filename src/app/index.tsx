@@ -31,9 +31,6 @@ export default function HoyScreen() {
   useFocusEffect(
     React.useCallback(() => {
       cargar()
-      tooltipVisto('tu_dia').then(visto => {
-        if (!visto) setMostrarTooltip(true)
-      })
       verificarAcceso()
     }, [])
   )
@@ -60,7 +57,13 @@ export default function HoyScreen() {
 
     if (!data.onboarding_completado) {
       router.replace('/onboarding')
+      return
     }
+
+    // Solo mostrar tooltip si el usuario tiene acceso completo
+    tooltipVisto('tu_dia').then(visto => {
+      if (!visto) setMostrarTooltip(true)
+    })
   }
 
   async function cargar() {
