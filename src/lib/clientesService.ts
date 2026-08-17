@@ -73,15 +73,9 @@ export async function addInteraction(clientId: string, type: string, content: st
   const { error } = await supabase
     .from('interactions')
     .insert({ client_id: clientId, type, content })
-
   if (error) throw error
 
-  // Actualizar contador y fecha de último contacto
-  await supabase
-    .from('clients')
-    .update({
-      last_contact_at: new Date().toISOString(),
-      contact_count: supabase.rpc('increment', { row_id: clientId }),
-    })
-    .eq('id', id)
+  const { error: errorContador } = await supabase
+    .rpc('incrementar_contacto', { p_client_id: clientId })
+  if (errorContador) throw errorContador
 }
