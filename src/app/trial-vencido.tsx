@@ -1,64 +1,102 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native'
+import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
+import { APP_NAME, APP_FOOTER } from '../lib/marca'
+
+const NEGRO = '#1A1A2E'
+const WHATSAPP = '595985715389'
+
+const BENEFICIOS = [
+  { icon: 'people',          texto: 'Todos tus clientes y datos guardados' },
+  { icon: 'sparkles',        texto: 'Sugerencias con IA personalizadas' },
+  { icon: 'git-branch',      texto: 'Pipeline Hot/Warm/Cold automático' },
+  { icon: 'car-sport',       texto: 'Catálogo de vehículos' },
+  { icon: 'megaphone',       texto: 'Generador de anuncios para redes' },
+  { icon: 'document-text',   texto: 'Reporte PDF de cierre de mes' },
+]
 
 export default function TrialVencidoScreen() {
+  const router = useRouter()
 
   async function cerrarSesion() {
     await supabase.auth.signOut()
   }
 
-  function contactar() {
-    if (typeof window !== 'undefined') {
-      window.open('https://wa.me/595985715389?text=Hola%2C%20quiero%20continuar%20usando%20Vendix', '_blank')
-    }
+  function verPlanes() {
+    router.push('/planes')
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.iconBox}>
-        <Text style={{ fontSize: 48 }}>⏰</Text>
+        <Ionicons name="time-outline" size={42} color={T.warm} />
       </View>
+
       <Text style={styles.titulo}>Tu período de prueba terminó</Text>
       <Text style={styles.sub}>
-        Tus 14 días de prueba gratuita han finalizado. Para seguir usando Vendix y no perder tu historial de clientes, activá tu plan.
+        Tus 14 días gratuitos finalizaron. Activá tu plan para seguir usando {APP_NAME} sin perder nada de tu historial.
       </Text>
 
-      <View style={styles.beneficios}>
-        {[
-          '✅ Todos tus clientes y datos guardados',
-          '✅ Sugerencia IA personalizada',
-          '✅ Pipeline Hot/Warm/Cold automático',
-          '✅ Reporte PDF de cierre de mes',
-          '✅ Generador de anuncios para redes',
-        ].map(b => (
-          <Text key={b} style={styles.beneficio}>{b}</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>SEGUÍ APROVECHANDO</Text>
+        {BENEFICIOS.map((b, i) => (
+          <View key={b.texto} style={[styles.beneficio, i === BENEFICIOS.length - 1 && { borderBottomWidth: 0 }]}>
+            <View style={styles.beneficioIcon}>
+              <Ionicons name={b.icon as any} size={15} color={T.accentText} />
+            </View>
+            <Text style={styles.beneficioText}>{b.texto}</Text>
+            <Ionicons name="checkmark-circle" size={16} color={T.green} />
+          </View>
         ))}
       </View>
 
-      <TouchableOpacity style={styles.btnPrincipal} onPress={contactar}>
-        <Text style={styles.btnPrincipalText}>💬 Contactar por WhatsApp</Text>
+      <View style={styles.avisoBox}>
+        <Ionicons name="shield-checkmark-outline" size={16} color={T.green} />
+        <Text style={styles.avisoText}>
+          Tus datos están guardados y seguros. Al activar tu plan recuperás todo tal como lo dejaste.
+        </Text>
+      </View>
+
+      <TouchableOpacity style={styles.btnPrincipal} onPress={verPlanes} activeOpacity={0.85}>
+        <Ionicons name="card" size={19} color="#fff" />
+        <Text style={styles.btnPrincipalText}>Ver planes y activar</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.btnSecundario} onPress={cerrarSesion}>
+      <TouchableOpacity style={styles.btnSecundario} onPress={cerrarSesion} activeOpacity={0.7}>
+        <Ionicons name="log-out-outline" size={17} color={T.muted} />
         <Text style={styles.btnSecundarioText}>Cerrar sesión</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>Vendix · Vendé con inteligencia.</Text>
-    </View>
+      <Text style={styles.footer}>{APP_FOOTER}</Text>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container:       { flex: 1, backgroundColor: T.bg, padding: 28, justifyContent: 'center' },
-  iconBox:         { alignItems: 'center', marginBottom: 20 },
-  titulo:          { color: T.text, fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5, marginBottom: 12 },
-  sub:             { color: T.muted, fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  beneficios:      { backgroundColor: T.white, borderRadius: 14, padding: 16, marginBottom: 24, borderWidth: 0.5, borderColor: T.border, gap: 10 },
-  beneficio:       { color: T.text, fontSize: 13, fontWeight: '500' },
-  btnPrincipal:    { backgroundColor: T.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 12 },
-  btnPrincipalText:{ color: '#fff', fontSize: 16, fontWeight: '800' },
-  btnSecundario:   { backgroundColor: T.white, borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 0.5, borderColor: T.border },
+  container:         { flex: 1, backgroundColor: T.bg },
+  content:           { flexGrow: 1, justifyContent: 'center', padding: 26, paddingVertical: 50 },
+
+  iconBox:           { width: 82, height: 82, borderRadius: 26, backgroundColor: T.warmDim, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 22 },
+
+  titulo:            { color: NEGRO, fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.6, marginBottom: 10 },
+  sub:               { color: T.muted, fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24, paddingHorizontal: 6 },
+
+  card:              { backgroundColor: T.white, borderRadius: 18, padding: 18, marginBottom: 14, borderWidth: 0.5, borderColor: T.border },
+  cardLabel:         { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.3, marginBottom: 6 },
+  beneficio:         { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, borderBottomWidth: 0.5, borderBottomColor: T.border },
+  beneficioIcon:     { width: 30, height: 30, borderRadius: 10, backgroundColor: T.accentDim, alignItems: 'center', justifyContent: 'center' },
+  beneficioText:     { color: NEGRO, fontSize: 13, fontWeight: '500', flex: 1 },
+
+  avisoBox:          { flexDirection: 'row', alignItems: 'flex-start', gap: 9, backgroundColor: T.greenDim, borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 0.5, borderColor: T.green + '33' },
+  avisoText:         { color: T.greenText, fontSize: 12, lineHeight: 18, flex: 1 },
+
+  btnPrincipal:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: '#25D366', borderRadius: 15, paddingVertical: 17, marginBottom: 10 },
+  btnPrincipalText:  { color: '#fff', fontSize: 16, fontWeight: '800' },
+
+  btnSecundario:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: T.white, borderRadius: 15, paddingVertical: 16, borderWidth: 0.5, borderColor: T.border },
   btnSecundarioText: { color: T.muted, fontSize: 14, fontWeight: '600' },
-  footer:          { textAlign: 'center', color: T.muted, fontSize: 11, marginTop: 24 },
+
+  footer:            { textAlign: 'center', color: T.muted, fontSize: 11.5, marginTop: 24, fontWeight: '500' },
 })
