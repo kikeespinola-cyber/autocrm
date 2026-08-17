@@ -1,28 +1,49 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Image } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Image, Linking, Alert, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { Client, Interaction } from '../../lib/types'
 import { supabase } from '../../lib/supabase'
 import { generarSugerencia } from '../../lib/ia'
 import { useTipoCambio } from '../../hooks/useTipoCambio'
+import { elegirImagen, subirImagen } from '../../lib/imagenService'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../../lib/theme'
+import * as Clipboard from 'expo-clipboard'
 
-const iconFor = (t: string) => ({ call:'📞', whatsapp:'💬', visit:'🏢', note:'📝', lead:'🌐', sale:'✅' }[t] || '📝')
+const NEGRO = '#1A1A2E'
+
+const INTERACTION_ICON: Record<string, any> = {
+  call:     'call',
+  whatsapp: 'logo-whatsapp',
+  visit:    'business',
+  note:     'document-text',
+  lead:     'globe-outline',
+  sale:     'trophy',
+}
+
+const INTERACTION_COLOR: Record<string, string> = {
+  call:     '#10B981',
+  whatsapp: '#25D366',
+  visit:    '#8B5CF6',
+  note:     '#4A8AE8',
+  lead:     '#F59E0B',
+  sale:     '#10B981',
+}
 
 const etapaLabel: Record<string, string> = {
-  interesado: '👀 Interesado',
-  evaluando:  '🤔 Evaluando',
-  objecion:   '💬 Objeción',
-  documentos: '📄 Documentos',
-  cierre:     '🏆 Cierre',
+  interesado: 'Interesado',
+  evaluando:  'Evaluando',
+  objecion:   'Objeción',
+  documentos: 'Documentos',
+  cierre:     'Cierre',
 }
 
 const origenLabel: Record<string, string> = {
-  salon:      '🏢 Salón',
-  red_social: '📱 Red social',
-  referido:   '🤝 Referido',
-  pauta:      '📢 Pauta',
-  otro:       '✦ Otro',
+  salon:      'Salón',
+  red_social: 'Red social',
+  referido:   'Referido',
+  pauta:      'Pauta',
+  otro:       'Otro',
 }
 
 export default function ClienteDetail() {
@@ -102,13 +123,23 @@ export default function ClienteDetail() {
     setUltimaAccion(null)
   }
 
-  async function marcarVendido() {
-    const confirmar = typeof window !== 'undefined' ? window.confirm('¿Confirmás que se cerró esta venta?') : false
-    if (!confirmar) return
-    await supabase.from('clients').update({ sold: true, sale_date: new Date().toISOString().split('T')[0] }).eq('id', id)
-    await supabase.from('interactions').insert({ client_id: id, type: 'sale', content: '✅ Venta cerrada' })
-    setClient(prev => prev ? { ...prev, sold: true } : prev)
-    if (typeof window !== 'undefined') window.alert('¡Venta cerrada! 🎉')
+  function marcarVendido() {
+    Alert.alert(
+      '¿Confirmás la venta?',
+      'Se va a marcar este cliente como vendido y pasa a Post-venta.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar venta',
+          onPress: async () => {
+            await supabase.from('clients').update({ sold: true, sale_date: new Date().toISOString().split('T')[0] }).eq('id', id)
+            await supabase.from('interactions').insert({ client_id: id, type: 'sale', content: 'Venta cerrada' })
+            setClient(prev => prev ? { ...prev, sold: true } : prev)
+            await cargar()
+          },
+        },
+      ]
+    )
   }
 
   async function descartarCliente() {
@@ -120,7 +151,7 @@ export default function ClienteDetail() {
     await supabase.from('interactions').insert({
       client_id: id,
       type: 'note',
-      content: `❌ Descartado: ${motivoDescarte.trim()}`
+      content: `Descartado: ${motivoDescarte.trim()}`
     })
     setModalDescarte(false)
     setMotivoDescarte('')
@@ -137,109 +168,160 @@ export default function ClienteDetail() {
   }
 
   async function subirFotoVehiculo() {
-    if (typeof window === 'undefined') return
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.onchange = async (e: any) => {
-      const file = e.target.files[0]
-      if (!file) return
-      setSubiendoFoto(true)
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        const ext = file.name.split('.').pop()
-        const path = `${user?.id}/${id}.${ext}`
-        await supabase.storage.from('vehiculos').upload(path, file, { upsert: true })
-        const { data: { publicUrl } } = supabase.storage.from('vehiculos').getPublicUrl(path)
-        const urlConTimestamp = publicUrl + '?t=' + Date.now()
-        await supabase.from('clients').update({ vehicle_photo_url: urlConTimestamp }).eq('id', id)
-        setClient(prev => prev ? { ...prev, vehicle_photo_url: urlConTimestamp } : prev)
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setSubiendoFoto(false)
-      }
+    const asset = await elegirImagen([4, 3])
+    if (!asset) return
+    setSubiendoFoto(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const url = await subirImagen(asset, 'vehiculos', `${user?.id}/${id}`)
+      await supabase.from('clients').update({ vehicle_photo_url: url }).eq('id', id)
+      setClient(prev => prev ? { ...prev, vehicle_photo_url: url } : prev)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSubiendoFoto(false)
     }
-    input.click()
   }
 
-  function abrirWhatsApp() {
+  function abrirWhatsApp(mensaje?: string) {
     const phone = client?.phone?.replace(/\D/g, '') || ''
-    if (typeof window !== 'undefined') window.open(`https://wa.me/595${phone}`, '_blank')
+    if (!phone) return
+    const texto = mensaje ? `?text=${encodeURIComponent(mensaje)}` : ''
+    Linking.openURL(`https://wa.me/595${phone}${texto}`)
   }
 
   function llamar() {
-    if (typeof window !== 'undefined') window.open(`tel:${client?.phone || ''}`)
+    if (!client?.phone) return
+    Linking.openURL(`tel:${client.phone}`)
   }
 
   function copiarMensaje() {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(mensajeIA)
+    {
+      Clipboard.setStringAsync(mensajeIA)
       setCopiado(true)
       setTimeout(() => setCopiado(false), 2000)
     }
   }
 
+  // Explica el estado de la temperatura según días sin contacto (umbrales del pg_cron: 7 y 15)
+  function estadoTemperatura(): { texto: string; color: string; icon: string } | null {
+    if (!client) return null
+    if (client.sold) return null
+
+    const dias = client.last_contact_at
+      ? Math.floor((Date.now() - new Date(client.last_contact_at).getTime()) / (1000 * 60 * 60 * 24))
+      : null
+
+    if (client.temperature === 'hot') {
+      if (dias === null) return { texto: 'Aún sin contacto — contactalo para que no se enfríe', color: T.red, icon: 'flame' }
+      const restan = 7 - dias
+      if (restan <= 0) return { texto: 'Está por bajar a Warm — contactalo hoy', color: T.red, icon: 'alert-circle' }
+      if (restan <= 2) return { texto: `Se enfría a Warm en ${restan} día${restan !== 1 ? 's' : ''} si no lo contactás`, color: T.red, icon: 'flame' }
+      return { texto: 'Lead caliente — mantené el contacto activo', color: T.red, icon: 'flame' }
+    }
+
+    if (client.temperature === 'warm') {
+      if (dias === null) return { texto: 'Trabajalo para subirlo a Hot', color: T.warm, icon: 'partly-sunny' }
+      const restan = 15 - dias
+      if (restan <= 0) return { texto: 'Está por bajar a Cold — no lo dejes ir', color: T.warm, icon: 'alert-circle' }
+      if (restan <= 3) return { texto: `Se enfría a Cold en ${restan} día${restan !== 1 ? 's' : ''} sin contacto`, color: T.warm, icon: 'partly-sunny' }
+      return { texto: 'Un buen seguimiento puede subirlo a Hot', color: T.warm, icon: 'partly-sunny' }
+    }
+
+    return { texto: 'Lead frío — un contacto puede reactivarlo', color: T.blue, icon: 'snow' }
+  }
+  const estadoTemp = estadoTemperatura()
+
   if (!client) return (
     <View style={styles.loading}>
-      <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
+      <ActivityIndicator color={T.accent} size="large" />
+      <Text style={{ color: T.muted, fontSize: 14, marginTop: 14 }}>Cargando ficha...</Text>
     </View>
   )
+
+  const inactivo = client.sold || !!client.motivo_descarte
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.back}>‹ Volver</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+            <Ionicons name="chevron-back" size={20} color={NEGRO} />
+            <Text style={styles.back}>Volver</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push(`/cliente/editar/${id}`)}>
-            <Text style={styles.editBtn}>Editar ✏️</Text>
+          <TouchableOpacity onPress={() => router.push(`/cliente/editar/${id}`)} style={styles.headerBtn}>
+            <Text style={styles.editBtn}>Editar</Text>
+            <Ionicons name="create-outline" size={17} color={T.textSub} />
           </TouchableOpacity>
         </View>
+
         <View style={styles.profileRow}>
-          <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
-            <Text style={styles.avatarText}>{client.name.slice(0,2).toUpperCase()}</Text>
+          <View style={[styles.avatar, { backgroundColor: tempDim(client.temperature) }]}>
+            <Text style={[styles.avatarText, { color: tempTextColor(client.temperature) }]}>
+              {client.name.slice(0,2).toUpperCase()}
+            </Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.clientName}>{client.name}</Text>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: tempDim(client.temperature) }]}>
-                <Text style={[styles.badgeText, { color: tempTextColor(client.temperature) }]}>{tempLabel(client.temperature)}</Text>
+                <Text style={[styles.badgeText, { color: tempTextColor(client.temperature) }]}>
+                  {tempLabel(client.temperature)}
+                </Text>
               </View>
               {client.etapa && (
                 <View style={[styles.badge, { backgroundColor: T.bg }]}>
                   <Text style={[styles.badgeText, { color: T.textSub }]}>{etapaLabel[client.etapa]}</Text>
                 </View>
               )}
-              {client.calificacion && (
-                <Text style={{ fontSize: 12 }}>{'⭐'.repeat(client.calificacion)}</Text>
-              )}
+              {client.calificacion ? (
+                <View style={styles.starsRow}>
+                  {[...Array(client.calificacion)].map((_, i) => (
+                    <Ionicons key={i} name="star" size={11} color="#F59E0B" />
+                  ))}
+                </View>
+              ) : null}
               {client.motivo_descarte && (
                 <View style={[styles.badge, { backgroundColor: T.redDim }]}>
-                  <Text style={[styles.badgeText, { color: T.red }]}>❌ Descartado</Text>
+                  <Text style={[styles.badgeText, { color: T.red }]}>Descartado</Text>
                 </View>
               )}
-              {client.docs_received && <Text style={styles.docsTag}>📄 Docs ✓</Text>}
-              {client.sold && <Text style={styles.soldTag}>✅ Vendido</Text>}
+              {client.docs_received && (
+                <View style={styles.inlineRow}>
+                  <Ionicons name="checkmark-circle" size={12} color={T.green} />
+                  <Text style={styles.docsTag}>Docs</Text>
+                </View>
+              )}
+              {client.sold && (
+                <View style={styles.inlineRow}>
+                  <Ionicons name="trophy" size={12} color={T.green} />
+                  <Text style={styles.soldTag}>Vendido</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
 
+        {estadoTemp && (
+          <View style={[styles.tempHint, { backgroundColor: estadoTemp.color + '14' }]}>
+            <Ionicons name={estadoTemp.icon as any} size={15} color={estadoTemp.color} />
+            <Text style={[styles.tempHintText, { color: estadoTemp.color }]}>{estadoTemp.texto}</Text>
+          </View>
+        )}
+
         {client.vehicle_photo_url ? (
-          <TouchableOpacity onPress={subirFotoVehiculo} style={styles.fotoVehiculoContainer}>
+          <TouchableOpacity onPress={subirFotoVehiculo} style={styles.fotoVehiculoContainer} activeOpacity={0.9}>
             <Image source={{ uri: client.vehicle_photo_url }} style={styles.fotoVehiculo} resizeMode="cover" />
             <View style={styles.fotoVehiculoEdit}>
-              <Text style={{ fontSize: 12, color: '#fff', fontWeight: '700' }}>
-                {subiendoFoto ? '⏳ Subiendo...' : '📷 Cambiar foto'}
-              </Text>
+              <Ionicons name={subiendoFoto ? 'hourglass-outline' : 'camera'} size={13} color="#fff" />
+              <Text style={styles.fotoEditText}>{subiendoFoto ? 'Subiendo...' : 'Cambiar foto'}</Text>
             </View>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.fotoVehiculoVacia} onPress={subirFotoVehiculo}>
-            <Text style={{ fontSize: 24 }}>🚗</Text>
-            <Text style={{ color: T.muted, fontSize: 12, fontWeight: '600', marginTop: 4 }}>
-              {subiendoFoto ? '⏳ Subiendo...' : 'Agregar foto del vehículo de interés'}
+          <TouchableOpacity style={styles.fotoVehiculoVacia} onPress={subirFotoVehiculo} activeOpacity={0.7}>
+            <Ionicons name={subiendoFoto ? 'hourglass-outline' : 'car-sport-outline'} size={22} color={T.muted} />
+            <Text style={styles.fotoVaciaText}>
+              {subiendoFoto ? 'Subiendo...' : 'Agregar foto del vehículo'}
             </Text>
           </TouchableOpacity>
         )}
@@ -247,31 +329,45 @@ export default function ClienteDetail() {
 
       {ultimaAccion && (
         <View style={styles.undoBar}>
-          <Text style={styles.undoText}>Temperatura actualizada</Text>
+          <View style={styles.inlineRow}>
+            <Ionicons name="checkmark-circle" size={15} color="#fff" />
+            <Text style={styles.undoText}>Temperatura actualizada</Text>
+          </View>
           <TouchableOpacity onPress={deshacer}>
             <Text style={styles.undoBtn}>Deshacer</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <TouchableOpacity style={styles.iaStrip} onPress={() => setIaExpandida(!iaExpandida)} activeOpacity={0.8}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.iaTitle}>✦ SUGERENCIA IA</Text>
-          <Text style={{ color: T.accentText, fontSize: 11, fontWeight: '700' }}>
-            {cargandoIA ? '⏳ Analizando...' : iaExpandida ? '▲ Ocultar' : '▼ Ver sugerencia'}
-          </Text>
+      <TouchableOpacity style={styles.iaStrip} onPress={() => setIaExpandida(!iaExpandida)} activeOpacity={0.85}>
+        <View style={styles.iaHeader}>
+          <View style={styles.inlineRow}>
+            <Ionicons name="sparkles" size={14} color={T.accentText} />
+            <Text style={styles.iaTitle}>SUGERENCIA IA</Text>
+          </View>
+          {cargandoIA ? (
+            <Text style={styles.iaToggle}>Analizando...</Text>
+          ) : (
+            <Ionicons name={iaExpandida ? 'chevron-up' : 'chevron-down'} size={17} color={T.accentText} />
+          )}
         </View>
         {iaExpandida && !cargandoIA && (
           <>
-            <Text style={[styles.iaText, { marginTop: 8 }]}>{sugerencia}</Text>
+            <Text style={styles.iaText}>{sugerencia}</Text>
             {mensajeIA ? (
               <>
                 <View style={styles.iaDivider} />
                 <Text style={styles.iaMensajeLabel}>MENSAJE LISTO PARA WHATSAPP</Text>
                 <Text style={styles.iaMensaje}>{mensajeIA}</Text>
-                <TouchableOpacity style={styles.iaCopyBtn} onPress={copiarMensaje}>
-                  <Text style={styles.iaCopyText}>{copiado ? '✅ Copiado' : '📋 Copiar mensaje'}</Text>
-                </TouchableOpacity>
+                <View style={styles.iaBtnRow}>
+                  <TouchableOpacity style={styles.iaWaBtn} onPress={() => abrirWhatsApp(mensajeIA)} activeOpacity={0.85}>
+                    <Ionicons name="logo-whatsapp" size={15} color="#fff" />
+                    <Text style={styles.iaWaText}>Enviar por WhatsApp</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.iaCopyBtnSm} onPress={copiarMensaje} activeOpacity={0.8}>
+                    <Ionicons name={copiado ? 'checkmark' : 'copy-outline'} size={15} color={copiado ? '#10B981' : T.textSub} />
+                  </TouchableOpacity>
+                </View>
               </>
             ) : null}
           </>
@@ -280,38 +376,45 @@ export default function ClienteDetail() {
 
       <View style={styles.quickActions}>
         {[
-          { icon:'📞', label:'Llamé',      color:T.green,  bg:T.greenDim,  onPress: () => registrarContacto('call', 'Llamada realizada') },
-          { icon:'💬', label:'WA enviado', color:T.accent, bg:T.accentDim, onPress: () => registrarContacto('whatsapp', 'WhatsApp enviado') },
-          { icon:'📵', label:'No atendió', color:T.red,    bg:T.redDim,    onPress: () => registrarContacto('call', 'Llamada — no contestó') },
-          { icon:'📝', label:'Nota',       color:T.blue,   bg:T.blueDim,   onPress: () => setModalNota(true) },
+          { icon:'call',                label:'Llamé',      color:T.green,   onPress: () => registrarContacto('call', 'Llamada realizada') },
+          { icon:'logo-whatsapp',       label:'WA enviado', color:'#25D366', onPress: () => registrarContacto('whatsapp', 'WhatsApp enviado') },
+          { icon:'close-circle',        label:'No atendió', color:T.red,     onPress: () => registrarContacto('call', 'Llamada — no contestó') },
+          { icon:'create',              label:'Nota',       color:'#4A8AE8', onPress: () => setModalNota(true) },
         ].map(a => (
-          <TouchableOpacity key={a.label} style={[styles.qaBtn, { backgroundColor: a.bg }]} onPress={a.onPress}>
-            <Text style={styles.qaIcon}>{a.icon}</Text>
-            <Text style={[styles.qaLabel, { color: a.color }]}>{a.label}</Text>
+          <TouchableOpacity key={a.label} style={styles.qaBtn} onPress={a.onPress} activeOpacity={0.7}>
+            <View style={[styles.qaIconWrap, { backgroundColor: a.color + '18' }]}>
+              <Ionicons name={a.icon as any} size={17} color={a.color} />
+            </View>
+            <Text style={styles.qaLabel}>{a.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={styles.secondActions}>
-        <TouchableOpacity style={styles.secBtn} onPress={abrirWhatsApp}>
-          <Text style={[styles.secBtnText, { color: '#25D366' }]}>💬 WhatsApp</Text>
+        <TouchableOpacity style={styles.secBtn} onPress={() => abrirWhatsApp()} activeOpacity={0.7}>
+          <Ionicons name="logo-whatsapp" size={14} color="#25D366" />
+          <Text style={[styles.secBtnText, { color: '#25D366' }]}>WhatsApp</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secBtn} onPress={llamar}>
-          <Text style={[styles.secBtnText, { color: T.green }]}>📞 Llamar</Text>
+        <TouchableOpacity style={styles.secBtn} onPress={llamar} activeOpacity={0.7}>
+          <Ionicons name="call" size={14} color={T.green} />
+          <Text style={[styles.secBtnText, { color: T.green }]}>Llamar</Text>
         </TouchableOpacity>
-        {!client.sold && !client.motivo_descarte && (
-          <TouchableOpacity style={[styles.secBtn, { backgroundColor: T.accentDim, borderColor: T.accent + '44' }]} onPress={marcarVendido}>
-            <Text style={[styles.secBtnText, { color: T.accentText }]}>🏆 Vendido</Text>
+        {!inactivo && (
+          <TouchableOpacity style={[styles.secBtn, styles.secBtnDark]} onPress={marcarVendido} activeOpacity={0.85}>
+            <Ionicons name="trophy" size={14} color="#fff" />
+            <Text style={[styles.secBtnText, { color: '#fff' }]}>Vendido</Text>
           </TouchableOpacity>
         )}
-        {!client.sold && !client.motivo_descarte && (
-          <TouchableOpacity style={[styles.secBtn, { borderColor: T.red + '44' }]} onPress={() => setModalDescarte(true)}>
-            <Text style={[styles.secBtnText, { color: T.red }]}>❌ Descartar</Text>
+        {!inactivo && (
+          <TouchableOpacity style={styles.secBtn} onPress={() => setModalDescarte(true)} activeOpacity={0.7}>
+            <Ionicons name="close-circle-outline" size={14} color={T.red} />
+            <Text style={[styles.secBtnText, { color: T.red }]}>Descartar</Text>
           </TouchableOpacity>
         )}
         {client.motivo_descarte && (
           <View style={[styles.secBtn, { backgroundColor: T.redDim, borderColor: T.red + '44' }]}>
-            <Text style={[styles.secBtnText, { color: T.red }]}>❌ Descartado</Text>
+            <Ionicons name="close-circle" size={14} color={T.red} />
+            <Text style={[styles.secBtnText, { color: T.red }]}>Descartado</Text>
           </View>
         )}
       </View>
@@ -319,14 +422,14 @@ export default function ClienteDetail() {
       <View style={styles.tabs}>
         {(['info','historial'] as const).map(t => (
           <TouchableOpacity key={t} onPress={() => setTab(t)} style={[styles.tabBtn, tab === t && styles.tabBtnActive]}>
-            <Text style={[styles.tabText, { color: tab === t ? T.accent : T.muted }]}>
+            <Text style={[styles.tabText, { color: tab === t ? NEGRO : T.muted }]}>
               {t === 'info' ? 'Info' : 'Historial'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} nestedScrollEnabled={true}>
+      <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
         {tab === 'info' && (
           <>
             <View style={styles.infoCard}>
@@ -339,7 +442,6 @@ export default function ClienteDetail() {
                 { label: 'Club',              value: client.club },
                 { label: 'Etapa',             value: client.etapa ? etapaLabel[client.etapa] : null },
                 { label: 'Origen',            value: client.origen ? origenLabel[client.origen] : null },
-                { label: 'Calificación',      value: client.calificacion ? '⭐'.repeat(client.calificacion) : null },
                 { label: 'Comentario clave',  value: client.comentario_clave },
                 { label: 'Motivo descarte',   value: client.motivo_descarte },
                 { label: 'Notas',             value: client.notes },
@@ -347,47 +449,58 @@ export default function ClienteDetail() {
               ].filter(r => r.value).map((r, i, arr) => (
                 <View key={r.label} style={[styles.infoRow, i === arr.length-1 && { borderBottomWidth: 0 }]}>
                   <Text style={styles.infoLabel}>{r.label}</Text>
-                  <Text style={[styles.infoValue, r.accent && { color: T.accentText }]}>{r.value}</Text>
+                  <Text style={[styles.infoValue, r.accent && { color: T.accentText, fontWeight: '700' }]}>{r.value}</Text>
                 </View>
               ))}
             </View>
 
-            {!client.sold && !client.motivo_descarte && (
+            {!inactivo && (
               <>
                 <Text style={styles.sectionLabel}>CALIFICACIÓN DEL LEAD</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <TouchableOpacity
-                      key={n}
-                      onPress={async () => {
-                        await supabase.from('clients').update({ calificacion: n }).eq('id', id)
-                        setClient(prev => prev ? { ...prev, calificacion: n } : prev)
-                      }}
-                      style={{
-                        flex: 1, padding: 10, borderRadius: 10, alignItems: 'center',
-                        backgroundColor: (client.calificacion || 0) >= n ? '#FCD34D' : T.bg,
-                        borderWidth: 1, borderColor: '#FCD34D80',
-                      }}
-                    >
-                      <Text style={{ fontSize: 18 }}>⭐</Text>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: (client.calificacion || 0) >= n ? '#92400E' : T.muted }}>{n}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.starsBox}>
+                  {[1, 2, 3, 4, 5].map(n => {
+                    const activa = (client.calificacion || 0) >= n
+                    return (
+                      <TouchableOpacity
+                        key={n}
+                        onPress={async () => {
+                          await supabase.from('clients').update({ calificacion: n }).eq('id', id)
+                          setClient(prev => prev ? { ...prev, calificacion: n } : prev)
+                        }}
+                        style={styles.starBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons
+                          name={activa ? 'star' : 'star-outline'}
+                          size={26}
+                          color={activa ? '#F59E0B' : T.border}
+                        />
+                      </TouchableOpacity>
+                    )
+                  })}
                 </View>
 
                 <Text style={styles.sectionLabel}>TEMPERATURA</Text>
                 <View style={styles.tempRow}>
-                  {(['hot','warm','cold'] as const).map(t => (
-                    <TouchableOpacity key={t} onPress={() => cambiarTemp(t)}
-                      style={[styles.tempBtn, {
-                        backgroundColor: client.temperature === t ? tempColor(t) : tempDim(t),
-                        borderColor: tempColor(t) + '80',
-                      }]}>
-                      <Text style={[styles.tempBtnText, { color: client.temperature === t ? '#fff' : tempTextColor(t) }]}>
-                        {tempLabel(t)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {(['hot','warm','cold'] as const).map(t => {
+                    const act = client.temperature === t
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        onPress={() => cambiarTemp(t)}
+                        activeOpacity={0.8}
+                        style={[styles.tempBtn, {
+                          backgroundColor: act ? tempColor(t) : T.white,
+                          borderColor: act ? tempColor(t) : T.border,
+                        }]}
+                      >
+                        <View style={[styles.dot, { backgroundColor: act ? '#fff' : tempColor(t) }]} />
+                        <Text style={[styles.tempBtnText, { color: act ? '#fff' : T.textSub }]}>
+                          {tempLabel(t)}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
                 </View>
               </>
             )}
@@ -398,12 +511,19 @@ export default function ClienteDetail() {
           <>
             {interactions.length === 0 ? (
               <View style={styles.empty}>
+                <Ionicons name="time-outline" size={36} color={T.muted} />
                 <Text style={styles.emptyText}>Sin interacciones todavía</Text>
                 <Text style={styles.emptySub}>Usá los botones de arriba para registrar contacto</Text>
               </View>
             ) : interactions.map(i => (
               <View key={i.id} style={styles.interactionCard}>
-                <Text style={styles.interactionIcon}>{iconFor(i.type)}</Text>
+                <View style={[styles.interactionIconWrap, { backgroundColor: (INTERACTION_COLOR[i.type] || T.muted) + '18' }]}>
+                  <Ionicons
+                    name={INTERACTION_ICON[i.type] || 'document-text'}
+                    size={16}
+                    color={INTERACTION_COLOR[i.type] || T.muted}
+                  />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.interactionContent}>{i.content}</Text>
                   <Text style={styles.interactionDate}>{new Date(i.created_at).toLocaleString('es-PY')}</Text>
@@ -417,6 +537,7 @@ export default function ClienteDetail() {
       <Modal visible={modalNota} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitulo}>Agregar nota</Text>
             <TextInput
               style={styles.notaInput}
@@ -432,7 +553,7 @@ export default function ClienteDetail() {
                 <Text style={styles.btnCancelarText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnGuardar} onPress={guardarNota} disabled={guardando}>
-                <Text style={styles.btnGuardarText}>{guardando ? 'Guardando...' : 'Guardar'}</Text>
+                <Text style={styles.btnGuardarText}>{guardando ? 'Guardando...' : 'Guardar nota'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -441,50 +562,58 @@ export default function ClienteDetail() {
 
       <Modal visible={modalDescarte} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitulo}>¿Por qué descartás este lead?</Text>
-            <View style={{ gap: 8, marginBottom: 16 }}>
-              {[
-                'No califica para crédito',
-                'Compró en otra concesionaria',
-                'No tiene presupuesto',
-                'Ya no está interesado',
-                'No responde',
-                'Otro motivo',
-              ].map(m => (
-                <TouchableOpacity
-                  key={m}
-                  style={{
-                    padding: 12, borderRadius: 10, borderWidth: 1,
-                    backgroundColor: motivoDescarte === m ? T.redDim : T.bg,
-                    borderColor: motivoDescarte === m ? T.red : T.border,
-                  }}
-                  onPress={() => setMotivoDescarte(m)}
-                >
-                  <Text style={{ color: motivoDescarte === m ? T.red : T.text, fontWeight: '600', fontSize: 13 }}>{m}</Text>
+          <ScrollView>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitulo}>¿Por qué descartás este lead?</Text>
+              <View style={{ gap: 8, marginTop: 14, marginBottom: 14 }}>
+                {[
+                  'No califica para crédito',
+                  'Compró en otra concesionaria',
+                  'No tiene presupuesto',
+                  'Ya no está interesado',
+                  'No responde',
+                  'Otro motivo',
+                ].map(m => {
+                  const sel = motivoDescarte === m
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      style={[styles.motivoBtn, sel && { backgroundColor: T.redDim, borderColor: T.red }]}
+                      onPress={() => setMotivoDescarte(m)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={sel ? 'radio-button-on' : 'radio-button-off'}
+                        size={17}
+                        color={sel ? T.red : T.border}
+                      />
+                      <Text style={{ color: sel ? T.red : T.textSub, fontWeight: '600', fontSize: 13 }}>{m}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+              <TextInput
+                style={styles.notaInput}
+                placeholder="O escribí tu propio motivo..."
+                placeholderTextColor={T.muted}
+                value={motivoDescarte}
+                onChangeText={setMotivoDescarte}
+              />
+              <View style={styles.modalBtns}>
+                <TouchableOpacity style={styles.btnCancelar} onPress={() => { setModalDescarte(false); setMotivoDescarte('') }}>
+                  <Text style={styles.btnCancelarText}>Cancelar</Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity
+                  style={[styles.btnGuardar, { backgroundColor: T.red }, !motivoDescarte.trim() && { opacity: 0.4 }]}
+                  onPress={descartarCliente}
+                  disabled={!motivoDescarte.trim()}
+                >
+                  <Text style={styles.btnGuardarText}>Descartar lead</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <TextInput
-              style={styles.notaInput}
-              placeholder="O escribí tu propio motivo..."
-              placeholderTextColor={T.muted}
-              value={motivoDescarte}
-              onChangeText={setMotivoDescarte}
-            />
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.btnCancelar} onPress={() => { setModalDescarte(false); setMotivoDescarte('') }}>
-                <Text style={styles.btnCancelarText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btnGuardar, { backgroundColor: T.red }, !motivoDescarte.trim() && { opacity: 0.5 }]}
-                onPress={descartarCliente}
-                disabled={!motivoDescarte.trim()}
-              >
-                <Text style={styles.btnGuardarText}>Descartar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -494,68 +623,101 @@ export default function ClienteDetail() {
 const styles = StyleSheet.create({
   container:             { flex: 1, backgroundColor: T.bg },
   loading:               { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
+  inlineRow:             { flexDirection: 'row', alignItems: 'center', gap: 5 },
+
   header:                { backgroundColor: T.white, borderBottomWidth: 0.5, borderBottomColor: T.border },
-  headerTop:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, paddingBottom: 12 },
-  back:                  { color: T.accent, fontSize: 14, fontWeight: '700' },
-  editBtn:               { color: T.muted, fontSize: 13, fontWeight: '600' },
-  profileRow:            { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingBottom: 12 },
-  avatar:                { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  avatarText:            { color: '#fff', fontSize: 18, fontWeight: '800' },
-  clientName:            { color: T.text, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
-  badgeRow:              { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
+  headerTop:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 10 },
+  headerBtn:             { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 4 },
+  back:                  { color: NEGRO, fontSize: 15, fontWeight: '600' },
+  editBtn:               { color: T.textSub, fontSize: 13.5, fontWeight: '600' },
+
+  profileRow:            { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 20, paddingBottom: 14 },
+  avatar:                { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
+  avatarText:            { fontSize: 18, fontWeight: '800' },
+  clientName:            { color: NEGRO, fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
+  tempHint:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12, marginBottom: 14 },
+  tempHintText:  { fontSize: 12.5, fontWeight: '600', flex: 1 },
+  badgeRow:              { flexDirection: 'row', gap: 7, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
   badge:                 { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeText:             { fontSize: 11, fontWeight: '700' },
-  docsTag:               { color: T.green, fontSize: 11, fontWeight: '700' },
-  soldTag:               { color: T.green, fontSize: 11, fontWeight: '700' },
-  fotoVehiculoContainer: { height: 160, overflow: 'hidden' },
-  fotoVehiculo:          { width: '100%', height: 160 },
-  fotoVehiculoEdit:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.4)', padding: 8, alignItems: 'center' },
-  fotoVehiculoVacia:     { height: 70, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, backgroundColor: T.bg, borderTopWidth: 0.5, borderTopColor: T.border },
-  undoBar:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1A1A2E', paddingHorizontal: 16, paddingVertical: 10, margin: 12, borderRadius: 10 },
-  undoText:              { color: '#fff', fontSize: 12, fontWeight: '500' },
-  undoBtn:               { color: T.accent, fontSize: 12, fontWeight: '800' },
-  iaStrip:               { marginHorizontal: 12, marginVertical: 8, backgroundColor: T.accentDim, borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: T.accent + '55' },
+  badgeText:             { fontSize: 10.5, fontWeight: '700' },
+  starsRow:              { flexDirection: 'row', gap: 1 },
+  docsTag:               { color: T.green, fontSize: 10.5, fontWeight: '700' },
+  soldTag:               { color: T.green, fontSize: 10.5, fontWeight: '700' },
+
+  fotoVehiculoContainer: { height: 165, overflow: 'hidden' },
+  fotoVehiculo:          { width: '100%', height: 165 },
+  fotoVehiculoEdit:      { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  fotoEditText:          { fontSize: 12, color: '#fff', fontWeight: '700' },
+  fotoVehiculoVacia:     { height: 74, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: T.bg, borderTopWidth: 0.5, borderTopColor: T.border },
+  fotoVaciaText:         { color: T.muted, fontSize: 12, fontWeight: '600' },
+
+  undoBar:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: NEGRO, paddingHorizontal: 16, paddingVertical: 11, marginHorizontal: 14, marginTop: 12, borderRadius: 12 },
+  undoText:              { color: '#fff', fontSize: 12.5, fontWeight: '500' },
+  undoBtn:               { color: T.accent, fontSize: 12.5, fontWeight: '800' },
+
+  iaStrip:               { marginHorizontal: 14, marginTop: 12, marginBottom: 4, backgroundColor: T.accentDim, borderRadius: 14, padding: 13, borderWidth: 0.5, borderColor: T.accent + '55' },
+  iaHeader:              { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   iaTitle:               { color: T.accentText, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  iaText:                { color: T.accentText, fontSize: 13, lineHeight: 20 },
-  iaDivider:             { height: 0.5, backgroundColor: T.accent + '44', marginVertical: 10 },
+  iaToggle:              { color: T.accentText, fontSize: 11, fontWeight: '700' },
+  iaText:                { color: T.accentText, fontSize: 13, lineHeight: 20, marginTop: 10 },
+  iaDivider:             { height: 0.5, backgroundColor: T.accent + '44', marginVertical: 11 },
   iaMensajeLabel:        { color: T.accentText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
-  iaMensaje:             { color: T.accentDark, fontSize: 12, lineHeight: 20, fontStyle: 'italic' },
-  iaCopyBtn:             { backgroundColor: T.accent, borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 10 },
-  iaCopyText:            { color: '#fff', fontSize: 12, fontWeight: '800' },
-  quickActions:          { flexDirection: 'row', padding: 12, paddingBottom: 6, gap: 8 },
-  qaBtn:                 { flex: 1, alignItems: 'center', padding: 10, borderRadius: 12 },
-  qaIcon:                { fontSize: 18 },
-  qaLabel:               { fontSize: 9, fontWeight: '700', marginTop: 3 },
-  secondActions:         { flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8, gap: 6, borderBottomWidth: 0.5, borderBottomColor: T.border, flexWrap: 'wrap' },
-  secBtn:                { flex: 1, backgroundColor: T.white, borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 0.5, borderColor: T.border, minWidth: 80 },
-  secBtnText:            { fontSize: 10, fontWeight: '700' },
+  iaMensaje:             { color: T.accentDark, fontSize: 12.5, lineHeight: 20, fontStyle: 'italic' },
+  iaBtnRow:      { flexDirection: 'row', gap: 8, marginTop: 12 },
+  iaWaBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#25D366', borderRadius: 11, paddingVertical: 12 },
+  iaWaText:      { color: '#fff', fontSize: 13.5, fontWeight: '800' },
+  iaCopyBtnSm:   { width: 46, alignItems: 'center', justifyContent: 'center', backgroundColor: T.bg, borderRadius: 11, borderWidth: 0.5, borderColor: T.border },
+  iaCopyBtn:             { backgroundColor: NEGRO, borderRadius: 10, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 11 },
+  iaCopyText:            { color: '#fff', fontSize: 12.5, fontWeight: '800' },
+
+  quickActions:          { flexDirection: 'row', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, gap: 8 },
+  qaBtn:                 { flex: 1, alignItems: 'center', gap: 5 },
+  qaIconWrap:            { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  qaLabel:               { fontSize: 10, fontWeight: '600', color: T.textSub },
+
+  secondActions:         { flexDirection: 'row', paddingHorizontal: 14, paddingBottom: 12, gap: 6, borderBottomWidth: 0.5, borderBottomColor: T.border, flexWrap: 'wrap' },
+  secBtn:                { flex: 1, flexDirection: 'row', backgroundColor: T.white, borderRadius: 11, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 0.5, borderColor: T.border, minWidth: 82 },
+  secBtnDark:            { backgroundColor: NEGRO, borderColor: NEGRO },
+  secBtnText:            { fontSize: 11, fontWeight: '700' },
+
   tabs:                  { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: T.border, backgroundColor: T.white },
-  tabBtn:                { flex: 1, padding: 12, alignItems: 'center' },
-  tabBtnActive:          { borderBottomWidth: 2, borderBottomColor: T.accent },
-  tabText:               { fontSize: 13, fontWeight: '600' },
+  tabBtn:                { flex: 1, paddingVertical: 13, alignItems: 'center' },
+  tabBtnActive:          { borderBottomWidth: 2, borderBottomColor: NEGRO },
+  tabText:               { fontSize: 13.5, fontWeight: '600' },
+
   scroll:                { flex: 1 },
-  infoCard:              { backgroundColor: T.white, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 0.5, borderColor: T.border },
-  infoRow:               { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: T.border },
+  infoCard:              { backgroundColor: T.white, borderRadius: 16, padding: 15, marginBottom: 18, borderWidth: 0.5, borderColor: T.border },
+  infoRow:               { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: T.border },
   infoLabel:             { color: T.muted, fontSize: 12 },
-  infoValue:             { color: T.text, fontSize: 13, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
-  sectionLabel:          { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
-  tempRow:               { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  tempBtn:               { flex: 1, padding: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1 },
-  tempBtnText:           { fontSize: 12, fontWeight: '700' },
-  interactionCard:       { flexDirection: 'row', gap: 12, backgroundColor: T.white, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: T.border },
-  interactionIcon:       { fontSize: 18 },
-  interactionContent:    { color: T.textSub, fontSize: 13 },
-  interactionDate:       { color: T.muted, fontSize: 11, marginTop: 4 },
-  empty:                 { alignItems: 'center', marginTop: 40 },
-  emptyText:             { color: T.text, fontSize: 14, fontWeight: '700' },
-  emptySub:              { color: T.muted, fontSize: 12, marginTop: 6, textAlign: 'center' },
-  modalOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard:             { backgroundColor: T.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalTitulo:           { color: T.text, fontSize: 18, fontWeight: '800', marginBottom: 16 },
-  notaInput:             { backgroundColor: T.bg, borderRadius: 10, padding: 12, color: T.text, fontSize: 14, borderWidth: 0.5, borderColor: T.border, minHeight: 80, textAlignVertical: 'top', marginBottom: 8 },
-  modalBtns:             { flexDirection: 'row', gap: 10, marginTop: 8 },
-  btnCancelar:           { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.bg, borderWidth: 0.5, borderColor: T.border },
-  btnCancelarText:       { color: T.muted, fontWeight: '700' },
-  btnGuardar:            { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', backgroundColor: T.accent },
-  btnGuardarText:        { color: '#fff', fontWeight: '800' },
+  infoValue:             { color: NEGRO, fontSize: 13, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
+
+  sectionLabel:          { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.4, marginBottom: 11 },
+  starsBox:              { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: T.white, borderRadius: 16, paddingVertical: 14, marginBottom: 20, borderWidth: 0.5, borderColor: T.border },
+  starBtn:               { padding: 4 },
+
+  tempRow:               { flexDirection: 'row', gap: 8, marginBottom: 18 },
+  tempBtn:               { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1 },
+  tempBtnText:           { fontSize: 12.5, fontWeight: '700' },
+  dot:                   { width: 8, height: 8, borderRadius: 4 },
+
+  interactionCard:       { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: T.white, borderRadius: 14, padding: 13, marginBottom: 8, borderWidth: 0.5, borderColor: T.border },
+  interactionIconWrap:   { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  interactionContent:    { color: NEGRO, fontSize: 13, fontWeight: '500' },
+  interactionDate:       { color: T.muted, fontSize: 11, marginTop: 3 },
+
+  empty:                 { alignItems: 'center', marginTop: 50, gap: 8 },
+  emptyText:             { color: NEGRO, fontSize: 14.5, fontWeight: '700' },
+  emptySub:              { color: T.muted, fontSize: 12, textAlign: 'center' },
+
+  modalOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  modalCard:             { backgroundColor: T.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, paddingTop: 12, paddingBottom: 40 },
+  modalHandle:           { width: 38, height: 4, borderRadius: 2, backgroundColor: T.border, alignSelf: 'center', marginBottom: 18 },
+  modalTitulo:           { color: NEGRO, fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginBottom: 4 },
+  motivoBtn:             { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 13, borderRadius: 12, borderWidth: 1, backgroundColor: T.bg, borderColor: T.border },
+  notaInput:             { backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: NEGRO, fontSize: 14, borderWidth: 0.5, borderColor: T.border, minHeight: 84, textAlignVertical: 'top', marginTop: 12 },
+  modalBtns:             { flexDirection: 'row', gap: 10, marginTop: 20 },
+  btnCancelar:           { flex: 1, padding: 15, borderRadius: 14, alignItems: 'center', backgroundColor: T.bg, borderWidth: 0.5, borderColor: T.border },
+  btnCancelarText:       { color: T.textSub, fontWeight: '700', fontSize: 14 },
+  btnGuardar:            { flex: 1.4, padding: 15, borderRadius: 14, alignItems: 'center', backgroundColor: NEGRO },
+  btnGuardarText:        { color: '#fff', fontWeight: '800', fontSize: 14 },
 })

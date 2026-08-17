@@ -1,15 +1,20 @@
 import { mensajeError } from '../lib/errores'
 import { pedirPermisos, programarRecordatorioDiario } from '../lib/notificaciones'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, RefreshControl } from 'react-native'
 import { useRouter, useFocusEffect } from 'expo-router'
 import React, { useState, useEffect } from 'react'
+import { Ionicons } from '@expo/vector-icons'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 import { necesitaContactoHoy, proximoContactoTexto } from '../lib/protocolo'
-import { T, tempDim, tempTextColor, tempLabel } from '../lib/theme'
+import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../lib/theme'
+import { APP_NAME } from '../lib/marca'
 import { supabase } from '../lib/supabase'
 import Tooltip from '../components/Tooltip'
 import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
+import * as Clipboard from 'expo-clipboard'
+
+const NEGRO = '#1A1A2E'
 
 let _accesoVerificado = false
 
@@ -20,6 +25,9 @@ export default function HoyScreen() {
   const [error, setError]                   = useState<string | null>(null)
   const [mostrarTooltip, setMostrarTooltip] = useState(false)
   const [reunionesHoy, setReunionesHoy]     = useState<any[]>([])
+  const [copiado, setCopiado]               = useState<string | null>(null)
+  const [diasTrial, setDiasTrial]           = useState<number | null>(null)
+  const [refreshing, setRefreshing]         = useState(false)
 
   useEffect(() => {
     pedirPermisos().then(granted => {
@@ -60,7 +68,6 @@ export default function HoyScreen() {
       return
     }
 
-    // Solo mostrar tooltip si el usuario tiene acceso completo
     tooltipVisto('tu_dia').then(visto => {
       if (!visto) setMostrarTooltip(true)
     })
@@ -88,6 +95,19 @@ export default function HoyScreen() {
       .eq('completada', false)
       .order('hora', { ascending: true })
     if (r) setReunionesHoy(r)
+
+    // Dias restantes de trial (para el banner)
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('status, current_period_end')
+      .eq('user_id', user?.id)
+      .single()
+    if (sub?.status === 'trial' && sub.current_period_end) {
+      const dias = Math.ceil((new Date(sub.current_period_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      setDiasTrial(dias)
+    } else {
+      setDiasTrial(null)
+    }
   }
 
   async function registrarRapido(clientId: string, type: string, content: string) {
@@ -100,9 +120,30 @@ export default function HoyScreen() {
     await cargar()
   }
 
+  function copiarSaludo(c: Client) {
+    const msg = `¡Hola ${c.name.split(' ')[0]}! Te escribo para desearte un feliz cumpleaños. Que lo pases genial. Un saludo de parte mía.`
+    {
+      Clipboard.setStringAsync(msg)
+      setCopiado(c.id)
+      setTimeout(() => setCopiado(null), 2000)
+    }
+  }
+
+  async function onRefresh() {
+    setRefreshing(true)
+    await cargar()
+    setRefreshing(false)
+  }
+
   const hoy      = new Date()
   const activos  = clients.filter(c => !c.sold)
   const cerrados = clients.filter(c => c.sold)
+  const ahora = new Date()
+  const ventasMes = clients.filter(c => {
+    if (!c.sold || !c.sale_date) return false
+    const f = new Date(c.sale_date)
+    return f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear()
+  }).length
   const urgentes = activos.filter(c =>
     necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at) && c.temperature === 'hot'
   )
@@ -112,6 +153,16 @@ export default function HoyScreen() {
   const proximos = activos.filter(c =>
     !necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at)
   )
+
+  // Lead prioritario: el hot urgente con más días sin contacto (el que está por perder)
+  function diasSinContacto(c: Client): number {
+    if (!c.last_contact_at) return 999
+    return Math.floor((Date.now() - new Date(c.last_contact_at).getTime()) / (1000 * 60 * 60 * 24))
+  }
+  const prioritario = urgentes.length > 0
+    ? [...urgentes].sort((a, b) => diasSinContacto(b) - diasSinContacto(a))[0]
+    : null
+  const restantesUrgentes = prioritario ? urgentes.filter(c => c.id !== prioritario.id) : urgentes
   const cumpleHoy = clients.filter(c => {
     if (!c.birthday) return false
     const b   = c.birthday.toLowerCase()
@@ -123,7 +174,8 @@ export default function HoyScreen() {
   if (loading) {
     return (
       <View style={styles.loading}>
-        <Text style={{ color: T.accent, fontSize: 16 }}>Cargando...</Text>
+        <ActivityIndicator color={T.accent} size="large" />
+        <Text style={{ color: T.muted, fontSize: 14, marginTop: 14 }}>Cargando tu día...</Text>
       </View>
     )
   }
@@ -131,30 +183,119 @@ export default function HoyScreen() {
   if (error) {
     return (
       <View style={styles.loading}>
-        <Text style={{ fontSize: 32, marginBottom: 12 }}>⚠️</Text>
-        <Text style={{ color: T.text, fontSize: 15, fontWeight: '700', textAlign: 'center', paddingHorizontal: 30 }}>{error}</Text>
-        <TouchableOpacity onPress={cargar} style={{ marginTop: 16, backgroundColor: T.accent, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
+        <Ionicons name="alert-circle-outline" size={38} color={T.red} style={{ marginBottom: 12 }} />
+        <Text style={{ color: NEGRO, fontSize: 15, fontWeight: '700', textAlign: 'center', paddingHorizontal: 30 }}>{error}</Text>
+        <TouchableOpacity onPress={cargar} style={styles.retryBtn}>
           <Text style={{ color: '#fff', fontWeight: '700' }}>Reintentar</Text>
         </TouchableOpacity>
       </View>
     )
   }
 
+  function QuickBtns({ c }: { c: Client }) {
+    return (
+      <View style={styles.quickBtns}>
+        <TouchableOpacity style={styles.quickBtn} onPress={() => registrarRapido(c.id, 'call', 'Llamada realizada')}>
+          <Ionicons name="call" size={15} color={T.green} />
+          <Text style={[styles.quickBtnText, { color: T.green }]}>Llamé</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.quickBtn} onPress={() => registrarRapido(c.id, 'whatsapp', 'WhatsApp enviado')}>
+          <Ionicons name="chatbubble-ellipses" size={15} color="#25D366" />
+          <Text style={[styles.quickBtnText, { color: '#25D366' }]}>WhatsApp</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.quickBtn} onPress={() => registrarRapido(c.id, 'call', 'Llamada — no contestó')}>
+          <Ionicons name="close-circle" size={15} color={T.red} />
+          <Text style={[styles.quickBtnText, { color: T.red }]}>No atendió</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  function ClienteCard({ c, accionTexto, accionColor }: { c: Client; accionTexto?: string; accionColor?: string }) {
+    return (
+      <View style={styles.card}>
+        <View style={[styles.tempStrip, { backgroundColor: tempColor(c.temperature) }]} />
+        <View style={styles.cardBody}>
+          <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)} activeOpacity={0.7}>
+            <View style={styles.cardRow}>
+              <View style={[styles.avatar, { backgroundColor: tempDim(c.temperature) }]}>
+                <Text style={[styles.avatarText, { color: tempTextColor(c.temperature) }]}>
+                  {c.name.slice(0,2).toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardName} numberOfLines={1}>{c.name}</Text>
+                {accionTexto ? (
+                  <Text style={[styles.cardAccion, { color: accionColor || T.textSub }]}>{accionTexto}</Text>
+                ) : null}
+                <Text style={styles.cardVehicle} numberOfLines={1}>
+                  {c.vehicle_interest || 'Sin vehículo asignado'}
+                </Text>
+              </View>
+              <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
+                <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>
+                  {tempLabel(c.temperature)}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+          <QuickBtns c={c} />
+        </View>
+      </View>
+    )
+  }
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#04dedf" colors={["#04dedf"]} />}
+    >
       <Text style={styles.fecha}>
         {new Date().toLocaleDateString('es-PY', { weekday: 'long', day: 'numeric', month: 'long' })}
       </Text>
-      <Text style={styles.titulo}>Tu día · {urgentes.length + masTarde.length} acciones</Text>
-      <Text style={styles.eslogan}>Tus leads, más personales que nunca.</Text>
+      <Text style={styles.titulo}>Tu día</Text>
+      <Text style={styles.subtitulo}>
+        {(() => {
+          const pend = urgentes.length + masTarde.length
+          if (pend > 0) return `${pend} acción${pend !== 1 ? 'es' : ''} para hoy — ¡a cerrar ventas!`
+          if (ventasMes > 0) return `Vas ${ventasMes} venta${ventasMes !== 1 ? 's' : ''} este mes. ¡Seguí así!`
+          return 'Todo al día. Buen momento para sumar leads.'
+        })()}
+      </Text>
+
+      {diasTrial !== null && diasTrial <= 3 && (
+        <TouchableOpacity
+          style={styles.trialBanner}
+          onPress={() => Linking.openURL('https://wa.me/595985715389?text=Hola%2C%20quiero%20continuar%20usando%20Vendix')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.trialIconWrap}>
+            <Ionicons name={diasTrial <= 0 ? 'alert-circle' : 'time'} size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.trialTitulo}>
+              {diasTrial <= 0
+                ? 'Tu prueba venció'
+                : diasTrial === 1
+                ? 'Te queda 1 día de prueba'
+                : `Te quedan ${diasTrial} días de prueba`}
+            </Text>
+            <Text style={styles.trialSub}>Tocá para activar tu plan y no perder acceso</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+      )}
 
       <View style={styles.statsRow}>
         {[
-          { num: activos.length,  label: 'Activos',  color: T.accent },
-          { num: cerrados.length, label: 'Cerrados', color: T.green },
-          { num: urgentes.length, label: 'Urgentes', color: T.red },
+          { num: activos.length,  label: 'Activos',   color: NEGRO,   icon: 'people-outline' },
+          { num: ventasMes,       label: 'Este mes',  color: T.green, icon: 'trophy-outline' },
+          { num: urgentes.length, label: 'Urgentes',  color: T.red,   icon: 'alert-circle-outline' },
         ].map(s => (
           <View key={s.label} style={styles.statCard}>
+            <Ionicons name={s.icon as any} size={16} color={s.color} style={{ marginBottom: 5 }} />
             <Text style={[styles.statNum, { color: s.color }]}>{s.num}</Text>
             <Text style={styles.statLabel}>{s.label}</Text>
           </View>
@@ -163,21 +304,32 @@ export default function HoyScreen() {
 
       {reunionesHoy.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>📅 REUNIONES DE HOY</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="calendar" size={13} color={T.muted} />
+            <Text style={styles.sectionLabel}>REUNIONES DE HOY</Text>
+          </View>
           {reunionesHoy.map(r => (
             <TouchableOpacity
               key={r.id}
-              style={[styles.card, { borderLeftWidth: 3, borderLeftColor: T.accent }]}
+              style={styles.card}
               onPress={() => router.push('/reuniones')}
+              activeOpacity={0.7}
             >
-              <View style={styles.cardRow}>
-                <View style={[styles.avatar, { backgroundColor: T.accentDim }]}>
-                  <Text style={{ fontSize: 18 }}>📅</Text>
-                </View>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardName}>{r.titulo}</Text>
-                  <Text style={[styles.cardAccion, { color: T.accent }]}>🕐 {r.hora}</Text>
-                  {r.notas && <Text style={styles.cardVehicle}>{r.notas}</Text>}
+              <View style={[styles.tempStrip, { backgroundColor: T.accent }]} />
+              <View style={styles.cardBody}>
+                <View style={styles.cardRow}>
+                  <View style={[styles.avatar, { backgroundColor: T.accentDim }]}>
+                    <Ionicons name="calendar" size={19} color={T.accentText} />
+                  </View>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardName}>{r.titulo}</Text>
+                    <View style={styles.inlineRow}>
+                      <Ionicons name="time-outline" size={12} color={T.accentText} />
+                      <Text style={[styles.cardAccion, { color: T.accentText }]}>{r.hora}</Text>
+                    </View>
+                    {r.notas && <Text style={styles.cardVehicle} numberOfLines={1}>{r.notas}</Text>}
+                  </View>
+                  <Ionicons name="chevron-forward" size={17} color={T.muted} />
                 </View>
               </View>
             </TouchableOpacity>
@@ -187,134 +339,143 @@ export default function HoyScreen() {
 
       {cumpleHoy.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>🎂 CUMPLEAÑOS HOY</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="gift" size={13} color={T.muted} />
+            <Text style={styles.sectionLabel}>CUMPLEAÑOS HOY</Text>
+          </View>
           {cumpleHoy.map(c => (
-            <View key={c.id} style={[styles.card, { borderLeftWidth: 3, borderLeftColor: T.warm }]}>
-              <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)}>
-                <View style={styles.cardRow}>
-                  <View style={[styles.avatar, { backgroundColor: T.warm }]}>
-                    <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
+            <View key={c.id} style={styles.card}>
+              <View style={[styles.tempStrip, { backgroundColor: T.warm }]} />
+              <View style={styles.cardBody}>
+                <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)} activeOpacity={0.7}>
+                  <View style={styles.cardRow}>
+                    <View style={[styles.avatar, { backgroundColor: T.warmDim }]}>
+                      <Ionicons name="gift" size={19} color={T.warmText} />
+                    </View>
+                    <View style={styles.cardInfo}>
+                      <Text style={styles.cardName}>{c.name}</Text>
+                      <Text style={[styles.cardAccion, { color: T.warmText }]}>Hoy es su cumpleaños</Text>
+                      <Text style={styles.cardVehicle} numberOfLines={1}>{c.vehicle_interest}</Text>
+                    </View>
                   </View>
-                  <View style={styles.cardInfo}>
-                    <Text style={styles.cardName}>{c.name}</Text>
-                    <Text style={[styles.cardAccion, { color: T.warm }]}>🎂 Hoy es su cumpleaños</Text>
-                    <Text style={styles.cardVehicle}>{c.vehicle_interest}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.quickBtn, { backgroundColor: T.warmDim, marginTop: 10, flex: 0, paddingHorizontal: 16 }]}
-                onPress={() => {
-                  const msg = `¡Hola ${c.name.split(' ')[0]}! Te escribo para desearte un feliz cumpleaños 🎉 Que lo pases genial. Un saludo de parte mía.`
-                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                    navigator.clipboard.writeText(msg)
-                  }
-                }}
-              >
-                <Text style={styles.quickBtnIcon}>💬</Text>
-                <Text style={[styles.quickBtnText, { color: T.warmText }]}>Copiar saludo</Text>
-              </TouchableOpacity>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saludoBtn}
+                  onPress={() => copiarSaludo(c)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={copiado === c.id ? 'checkmark-circle' : 'copy-outline'}
+                    size={15}
+                    color={copiado === c.id ? T.green : T.warmText}
+                  />
+                  <Text style={[styles.saludoBtnText, { color: copiado === c.id ? T.green : T.warmText }]}>
+                    {copiado === c.id ? 'Copiado' : 'Copiar saludo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </>
       )}
 
-      {urgentes.length > 0 && (
-        <>
-          <Text style={styles.sectionLabel}>AHORA MISMO</Text>
-          {urgentes.map(c => (
-            <View key={c.id} style={[styles.card, { borderLeftWidth: 3, borderLeftColor: T.red }]}>
-              <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)}>
-                <View style={styles.cardRow}>
-                  <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
-                    <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
-                  </View>
-                  <View style={styles.cardInfo}>
-                    <Text style={styles.cardName}>{c.name}</Text>
-                    <Text style={[styles.cardAccion, { color: T.red }]}>
-                      {c.contact_count === 0 ? 'Primer contacto pendiente' : `Contacto #${c.contact_count + 1} — toca hoy`}
-                    </Text>
-                    <Text style={styles.cardVehicle}>{c.vehicle_interest}</Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
-                    <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>{tempLabel(c.temperature)}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-              <View style={styles.quickBtns}>
-                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.greenDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada realizada')}>
-                  <Text style={styles.quickBtnIcon}>📞</Text>
-                  <Text style={[styles.quickBtnText, { color: T.green }]}>Llamé</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.accentDim }]} onPress={() => registrarRapido(c.id, 'whatsapp', 'WhatsApp enviado')}>
-                  <Text style={styles.quickBtnIcon}>💬</Text>
-                  <Text style={[styles.quickBtnText, { color: T.accentText }]}>WhatsApp</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.redDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada — no contestó')}>
-                  <Text style={styles.quickBtnIcon}>📵</Text>
-                  <Text style={[styles.quickBtnText, { color: T.red }]}>No atendió</Text>
-                </TouchableOpacity>
-              </View>
+      {prioritario && (
+        <TouchableOpacity
+          style={styles.prioBox}
+          onPress={() => router.push(`/cliente/${prioritario.id}`)}
+          activeOpacity={0.9}
+        >
+          <View style={styles.prioHeader}>
+            <Ionicons name="flame" size={15} color="#fff" />
+            <Text style={styles.prioLabel}>TU PRIORIDAD DE HOY</Text>
+          </View>
+          <Text style={styles.prioNombre}>{prioritario.name}</Text>
+          <Text style={styles.prioMotivo}>
+            {diasSinContacto(prioritario) >= 900
+              ? 'Todavía no lo contactaste. Es tu lead más caliente.'
+              : `Hace ${diasSinContacto(prioritario)} día${diasSinContacto(prioritario) !== 1 ? 's' : ''} sin contacto — está por enfriarse.`}
+          </Text>
+          {prioritario.vehicle_interest ? (
+            <View style={styles.prioVehiculo}>
+              <Ionicons name="car-sport-outline" size={13} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.prioVehiculoText}>{prioritario.vehicle_interest}</Text>
             </View>
+          ) : null}
+          <View style={styles.prioActions}>
+            {prioritario.phone ? (
+              <TouchableOpacity
+                style={styles.prioWaBtn}
+                onPress={() => Linking.openURL(`https://wa.me/595${prioritario.phone?.replace(/\D/g, '')}`)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
+                <Text style={styles.prioWaText}>WhatsApp</Text>
+              </TouchableOpacity>
+            ) : null}
+            <View style={styles.prioVerBtn}>
+              <Text style={styles.prioVerText}>Ver ficha</Text>
+              <Ionicons name="arrow-forward" size={14} color="#fff" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {restantesUrgentes.length > 0 && (
+        <>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.dot, { backgroundColor: T.red }]} />
+            <Text style={styles.sectionLabel}>AHORA MISMO</Text>
+          </View>
+          {restantesUrgentes.map(c => (
+            <ClienteCard
+              key={c.id}
+              c={c}
+              accionColor={T.red}
+              accionTexto={c.contact_count === 0 ? 'Primer contacto pendiente' : `Contacto #${c.contact_count + 1} — toca hoy`}
+            />
           ))}
         </>
       )}
 
       {masTarde.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>MÁS TARDE HOY</Text>
-          {masTarde.map(c => (
-            <View key={c.id} style={styles.card}>
-              <TouchableOpacity onPress={() => router.push(`/cliente/${c.id}`)}>
-                <View style={styles.cardRow}>
-                  <View style={[styles.avatar, { backgroundColor: '#6366F1' }]}>
-                    <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
-                  </View>
-                  <View style={styles.cardInfo}>
-                    <Text style={styles.cardName}>{c.name}</Text>
-                    <Text style={styles.cardAccion}>{c.vehicle_interest}</Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
-                    <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>{tempLabel(c.temperature)}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-              <View style={styles.quickBtns}>
-                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.greenDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada realizada')}>
-                  <Text style={styles.quickBtnIcon}>📞</Text>
-                  <Text style={[styles.quickBtnText, { color: T.green }]}>Llamé</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.accentDim }]} onPress={() => registrarRapido(c.id, 'whatsapp', 'WhatsApp enviado')}>
-                  <Text style={styles.quickBtnIcon}>💬</Text>
-                  <Text style={[styles.quickBtnText, { color: T.accentText }]}>WhatsApp</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.quickBtn, { backgroundColor: T.redDim }]} onPress={() => registrarRapido(c.id, 'call', 'Llamada — no contestó')}>
-                  <Text style={styles.quickBtnIcon}>📵</Text>
-                  <Text style={[styles.quickBtnText, { color: T.red }]}>No atendió</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+          <View style={styles.sectionHeader}>
+            <View style={[styles.dot, { backgroundColor: T.warm }]} />
+            <Text style={styles.sectionLabel}>MÁS TARDE HOY</Text>
+          </View>
+          {masTarde.map(c => <ClienteCard key={c.id} c={c} />)}
         </>
       )}
 
       {proximos.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>PRÓXIMOS</Text>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.dot, { backgroundColor: T.muted }]} />
+            <Text style={styles.sectionLabel}>PRÓXIMOS</Text>
+          </View>
           {proximos.map(c => (
-            <TouchableOpacity key={c.id} style={styles.card} onPress={() => router.push(`/cliente/${c.id}`)}>
+            <TouchableOpacity
+              key={c.id}
+              style={styles.cardSimple}
+              onPress={() => router.push(`/cliente/${c.id}`)}
+              activeOpacity={0.7}
+            >
               <View style={styles.cardRow}>
-                <View style={[styles.avatar, { backgroundColor: '#9CA3AF' }]}>
-                  <Text style={styles.avatarText}>{c.name.slice(0,2).toUpperCase()}</Text>
+                <View style={[styles.avatar, { backgroundColor: T.bg }]}>
+                  <Text style={[styles.avatarText, { color: T.muted }]}>
+                    {c.name.slice(0,2).toUpperCase()}
+                  </Text>
                 </View>
                 <View style={styles.cardInfo}>
-                  <Text style={styles.cardName}>{c.name}</Text>
-                  <Text style={styles.cardAccion}>
+                  <Text style={styles.cardName} numberOfLines={1}>{c.name}</Text>
+                  <Text style={styles.cardAccion} numberOfLines={1}>
                     {proximoContactoTexto(c.contact_count, c.temperature, c.last_contact_at)}
                   </Text>
                 </View>
                 <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
-                  <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>{tempLabel(c.temperature)}</Text>
+                  <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>
+                    {tempLabel(c.temperature)}
+                  </Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -322,16 +483,37 @@ export default function HoyScreen() {
         </>
       )}
 
-      {activos.length === 0 && (
+      {clients.length === 0 && (
+        <View style={styles.welcomeBox}>
+          <View style={styles.welcomeIcon}>
+            <Ionicons name="rocket" size={30} color={T.accentText} />
+          </View>
+          <Text style={styles.welcomeTitulo}>¡Bienvenido a {APP_NAME}!</Text>
+          <Text style={styles.welcomeTexto}>
+            Empezá cargando tu primer cliente. {APP_NAME} te va a decir a quién contactar cada día para que no se te escape ninguna venta.
+          </Text>
+          <TouchableOpacity
+            style={styles.welcomeBtn}
+            onPress={() => router.push('/clientes?nuevo=1')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add" size={19} color="#fff" />
+            <Text style={styles.welcomeBtnText}>Agregar mi primer cliente</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {clients.length > 0 && activos.length === 0 && (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Sin clientes activos</Text>
-          <Text style={styles.emptySub}>Andá a Clientes para agregar el primero</Text>
+          <Ionicons name="checkmark-done-circle-outline" size={44} color={T.green} />
+          <Text style={styles.emptyText}>¡Todo al día!</Text>
+          <Text style={styles.emptySub}>No tenés contactos pendientes por ahora. Buen trabajo.</Text>
         </View>
       )}
 
       <Tooltip
         visible={mostrarTooltip}
-        titulo="⚡ Tu día"
+        titulo="Tu día"
         descripcion="Acá aparecen los clientes que necesitan contacto hoy. Priorizados automáticamente — los más urgentes arriba. Tocá un cliente para ver su ficha o usá los botones rápidos para registrar un contacto sin abrirla."
         onCerrar={() => { setMostrarTooltip(false); marcarTooltipVisto('tu_dia') }}
       />
@@ -340,32 +522,70 @@ export default function HoyScreen() {
 }
 
 const styles = StyleSheet.create({
-  eslogan:      { color: T.accent, fontSize: 11, fontWeight: '600', marginTop: -14, marginBottom: 20, letterSpacing: 0.3 },
   container:    { flex: 1, backgroundColor: T.bg },
-  content:      { padding: 20, paddingTop: 60, paddingBottom: 100 },
+  content:      { padding: 20, paddingTop: 24, paddingBottom: 100 },
   loading:      { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
-  fecha:        { color: T.muted, fontSize: 12, letterSpacing: 0.5, textTransform: 'capitalize', fontWeight: '500' },
-  titulo:       { color: T.text, fontSize: 24, fontWeight: '800', marginTop: 4, marginBottom: 20, letterSpacing: -0.5 },
+  retryBtn:     { marginTop: 18, backgroundColor: NEGRO, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 12 },
+  inlineRow:    { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+
+  fecha:        { color: T.muted, fontSize: 12, letterSpacing: 0.4, textTransform: 'capitalize', fontWeight: '500' },
+  titulo:       { color: NEGRO, fontSize: 28, fontWeight: '800', marginTop: 3, letterSpacing: -0.8 },
+  subtitulo:    { color: T.muted, fontSize: 13, marginTop: 3, marginBottom: 20, fontWeight: '500' },
+
+  trialBanner:  { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1A1A2E', borderRadius: 16, padding: 14, marginBottom: 18 },
+  trialIconWrap:{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  trialTitulo:  { color: '#fff', fontSize: 14, fontWeight: '800' },
+  trialSub:     { color: 'rgba(255,255,255,0.7)', fontSize: 11.5, marginTop: 2 },
   statsRow:     { flexDirection: 'row', gap: 8, marginBottom: 24 },
-  statCard:     { flex: 1, backgroundColor: T.white, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: T.border },
-  statNum:      { fontSize: 28, fontWeight: '800', letterSpacing: -1 },
-  statLabel:    { color: T.muted, fontSize: 11, marginTop: 3, fontWeight: '500' },
-  sectionLabel: { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10, marginTop: 4 },
-  card:         { backgroundColor: T.white, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 0.5, borderColor: T.border },
+  prioBox:      { backgroundColor: '#EF4444', borderRadius: 20, padding: 20, marginBottom: 22, shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
+  prioHeader:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  prioLabel:    { color: '#fff', fontSize: 10.5, fontWeight: '800', letterSpacing: 1.2, opacity: 0.9 },
+  prioNombre:   { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: -0.6 },
+  prioMotivo:   { color: 'rgba(255,255,255,0.92)', fontSize: 14, lineHeight: 20, marginTop: 4 },
+  prioVehiculo: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  prioVehiculoText: { color: 'rgba(255,255,255,0.85)', fontSize: 12.5, fontWeight: '500' },
+  prioActions:  { flexDirection: 'row', gap: 10, marginTop: 18 },
+  prioWaBtn:    { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11 },
+  prioWaText:   { color: '#1A1A2E', fontSize: 13.5, fontWeight: '800' },
+  prioVerBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 12, paddingVertical: 11 },
+  prioVerText:  { color: '#fff', fontSize: 13.5, fontWeight: '800' },
+  statCard:     { flex: 1, backgroundColor: T.white, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: T.border },
+  statNum:      { fontSize: 26, fontWeight: '800', letterSpacing: -1 },
+  statLabel:    { color: T.muted, fontSize: 11, marginTop: 2, fontWeight: '500' },
+
+  sectionHeader:{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 11, marginTop: 6 },
+  sectionLabel: { color: T.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
+  dot:          { width: 7, height: 7, borderRadius: 3.5 },
+
+  card:         { backgroundColor: T.white, borderRadius: 16, marginBottom: 9, borderWidth: 0.5, borderColor: T.border, flexDirection: 'row', overflow: 'hidden' },
+  cardSimple:   { backgroundColor: T.white, borderRadius: 16, padding: 14, marginBottom: 9, borderWidth: 0.5, borderColor: T.border },
+  tempStrip:    { width: 4 },
+  cardBody:     { flex: 1, padding: 14 },
   cardRow:      { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar:       { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  avatarText:   { color: '#fff', fontSize: 13, fontWeight: '800' },
+  avatar:       { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  avatarText:   { fontSize: 14, fontWeight: '800' },
   cardInfo:     { flex: 1 },
-  cardName:     { color: T.text, fontSize: 14, fontWeight: '700' },
+  cardName:     { color: NEGRO, fontSize: 14.5, fontWeight: '700', letterSpacing: -0.2 },
   cardAccion:   { color: T.textSub, fontSize: 12, marginTop: 2 },
-  cardVehicle:  { color: T.muted, fontSize: 11, marginTop: 2 },
+  cardVehicle:  { color: T.muted, fontSize: 11.5, marginTop: 2 },
+
   badge:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeText:    { fontSize: 11, fontWeight: '700' },
-  quickBtns:    { flexDirection: 'row', gap: 8, marginTop: 10 },
-  quickBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, padding: 8, borderRadius: 10 },
-  quickBtnIcon: { fontSize: 14 },
+  badgeText:    { fontSize: 10.5, fontWeight: '700' },
+
+  quickBtns:    { flexDirection: 'row', gap: 6, marginTop: 12, paddingTop: 11, borderTopWidth: 0.5, borderTopColor: T.border },
+  quickBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 10, backgroundColor: T.bg },
   quickBtnText: { fontSize: 11, fontWeight: '700' },
-  empty:        { alignItems: 'center', marginTop: 60 },
-  emptyText:    { color: T.text, fontSize: 16, fontWeight: '700' },
-  emptySub:     { color: T.muted, fontSize: 13, marginTop: 8 },
+
+  saludoBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: T.warmDim },
+  saludoBtnText:{ fontSize: 12, fontWeight: '700' },
+
+  empty:        { alignItems: 'center', marginTop: 70, gap: 8 },
+  emptyText:    { color: NEGRO, fontSize: 16, fontWeight: '700' },
+  emptySub:     { color: T.muted, fontSize: 13, textAlign: 'center', paddingHorizontal: 30 },
+  welcomeBox:   { alignItems: 'center', marginTop: 40, backgroundColor: T.white, borderRadius: 20, padding: 26, borderWidth: 0.5, borderColor: T.border },
+  welcomeIcon:  { width: 64, height: 64, borderRadius: 20, backgroundColor: T.accentDim, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  welcomeTitulo:{ color: NEGRO, fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginBottom: 10 },
+  welcomeTexto: { color: T.textSub, fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 22 },
+  welcomeBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: NEGRO, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 24, alignSelf: 'stretch' },
+  welcomeBtnText:{ color: '#fff', fontSize: 15, fontWeight: '800' },
 })
