@@ -1,12 +1,19 @@
 import { Tabs, useRouter, useSegments } from 'expo-router'
 import { Text, View, ActivityIndicator } from 'react-native'
 import { useState, useEffect } from 'react'
+import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
+import { APP_NAME } from '../lib/marca'
+import { ToastProvider } from '../components/Toast'
+
+const NEGRO = '#1A1A2E'
 
 export default function Layout() {
   const router = useRouter()
   const segments = useSegments()
+  const insets = useSafeAreaInsets()
   const [session, setSession] = useState<any>(null)
   const [listo, setListo] = useState(false)
 
@@ -42,7 +49,7 @@ export default function Layout() {
         <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: '#fff', fontSize: 28, fontWeight: '900' }}>V</Text>
         </View>
-        <Text style={{ color: T.text, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 }}>Vendix</Text>
+        <Text style={{ color: NEGRO, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 }}>{APP_NAME}</Text>
         <ActivityIndicator color={T.accent} size="small" style={{ marginTop: 8 }} />
       </View>
     )
@@ -55,6 +62,7 @@ export default function Layout() {
   const ocultarTabs    = inLogin || inOnboarding || inRegistro || inTrialVencido
 
   return (
+    <ToastProvider>
     <Tabs
       screenOptions={{
         headerShown: !ocultarTabs,
@@ -65,24 +73,72 @@ export default function Layout() {
             <View style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>V</Text>
             </View>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: T.text, letterSpacing: -0.3 }}>Vendix</Text>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: NEGRO, letterSpacing: -0.3 }}>{APP_NAME}</Text>
           </View>
         ),
         tabBarStyle: ocultarTabs
           ? { display: 'none' }
-          : { backgroundColor: T.navBg, borderTopColor: T.navBorder, borderTopWidth: 0.5, height: 60 },
-        tabBarActiveTintColor: T.accent,
+          : {
+              backgroundColor: T.white,
+              borderTopColor: T.border,
+              borderTopWidth: 0.5,
+              height: 62 + insets.bottom,
+              paddingTop: 8,
+              paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+            },
+        tabBarActiveTintColor: NEGRO,
         tabBarInactiveTintColor: T.muted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 3 },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Hoy', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>⚡</Text> }} />
-      <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👥</Text> }} />
-      <Tabs.Screen name="pipeline" options={{ title: 'Pipeline', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>◈</Text> }} />
-      <Tabs.Screen name="reuniones" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📅</Text> }} />
-      <Tabs.Screen name="postventa" options={{ title: 'Post-venta', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤝</Text> }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👤</Text> }} />
-      <Tabs.Screen name="metricas" options={{ title: 'Métricas', tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>📊</Text> }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Hoy',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'flash' : 'flash-outline'} size={23} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="clientes"
+        options={{
+          title: 'Clientes',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={23} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="pipeline"
+        options={{
+          title: 'Pipeline',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'git-branch' : 'git-branch-outline'} size={23} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="reuniones"
+        options={{
+          title: 'Agenda',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={23} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="perfil"
+        options={{
+          title: 'Perfil',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={23} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen name="metricas" options={{ href: null, headerShown: true }} />
+      <Tabs.Screen name="postventa" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="registro" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
@@ -91,7 +147,10 @@ export default function Layout() {
       <Tabs.Screen name="cliente/editar/[id]" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="anuncios" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="pautas" options={{ href: null, headerShown: true }} />
+      <Tabs.Screen name="catalogo" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="admin" options={{ href: null, headerShown: true }} />
+      <Tabs.Screen name="planes" options={{ href: null, headerShown: false }} />
     </Tabs>
+    </ToastProvider>
   )
 }
