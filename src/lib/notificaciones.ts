@@ -5,52 +5,63 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 })
 
+// Pide permiso de notificaciones. Devuelve true si quedó habilitado.
 export async function pedirPermisos(): Promise<boolean> {
-  if (Platform.OS === 'web') return false
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('recordatorios', {
+      name: 'Recordatorios Vendix',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#04dedf',
+    })
+  }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync()
-  let finalStatus = existingStatus
-
-  if (existingStatus !== 'granted') {
+  const { status: existing } = await Notifications.getPermissionsAsync()
+  let finalStatus = existing
+  if (existing !== 'granted') {
     const { status } = await Notifications.requestPermissionsAsync()
     finalStatus = status
   }
-
   return finalStatus === 'granted'
 }
 
-export async function programarRecordatorioDiario() {
-  if (Platform.OS === 'web') return
+// Devuelve si el permiso ya está concedido (sin pedirlo)
+export async function permisoConcedido(): Promise<boolean> {
+  const { status } = await Notifications.getPermissionsAsync()
+  return status === 'granted'
+}
 
+// Programa el recordatorio diario a las 9:00. Cancela los anteriores para no duplicar.
+export async function programarRecordatorioDiario() {
   await Notifications.cancelAllScheduledNotificationsAsync()
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '⚡ Tu día en Vendix',
-      body: 'Revisá quién toca contactar hoy',
+      title: 'Tu día en Vendix',
+      body: 'Revisá quién toca contactar hoy para no perder ninguna venta.',
       sound: true,
     },
     trigger: {
-      hour: 8,
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: 9,
       minute: 0,
-      repeats: true,
     },
   })
 }
 
-export async function notificarClienteUrgente(nombreCliente: string, accion: string) {
-  if (Platform.OS === 'web') return
+// Cancela todos los recordatorios programados
+export async function cancelarRecordatorios() {
+  await Notifications.cancelAllScheduledNotificationsAsync()
+}
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: `🔴 ${nombreCliente}`,
-      body: accion,
-      sound: true,
-    },
-    trigger: null,
-  })
+// Devuelve si hay algún recordatorio programado
+export async function tieneRecordatorioActivo(): Promise<boolean> {
+  const programadas = await Notifications.getAllScheduledNotificationsAsync()
+  return programadas.length > 0
 }
