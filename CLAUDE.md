@@ -68,11 +68,11 @@ O sea: la lógica de trial/onboarding vive en la pantalla Hoy, no en el layout. 
 
 `src/lib/supabase.ts` crea el cliente con URL y publishable key **hardcodeadas** — no hay variables de entorno en el proyecto. La sesión persiste en `expo-secure-store` en nativo y no persiste en web (`persistSession: !isWeb`).
 
-Tablas en uso: `clients`, `interactions`, `reminders`, `reuniones`, `subscriptions`, `anuncios_historial`, `pautas`, `vehiculos_catalogo`. El aislamiento por usuario es por RLS + `user_id`; no hay migraciones versionadas en el repo, el esquema vive solo en Supabase.
+Tablas en uso: `clients`, `interactions`, `reminders`, `reuniones`, `subscriptions`, `anuncios_historial`, `pautas`, `vehiculos_catalogo`. El aislamiento por usuario es por RLS + `user_id`. Las migraciones versionadas arrancaron en `supabase/migrations/` pero cubren sólo los cambios nuevos: el grueso del esquema se creó a mano y vive únicamente en Supabase. Aplicar una migración es un paso manual — el archivo en el repo no toca la base solo.
 
 `subscriptions` es la tabla de perfil además de la de suscripción: guarda `nombre_vendedor`, `concesionaria`, `marca_vehiculo`, `avatar_url`, `meta_mensual`, `racha_dias`, `ultimo_acceso`, `tooltips_vistos` e `is_admin`. Varias features chicas (racha, tooltips, admin) leen y escriben ahí.
 
-**`src/lib/types.ts` está mantenido a mano y quedó desfasado del esquema real.** Ejemplos concretos: `Reminder` declara `fecha`/`nota`/`completado` pero `clientesService.getRemindersToday()` consulta `due_at`/`completed`; `getClients()` ordena por `updated_at` y `getClientsDueToday()` filtra por `next_contact_at`, columnas que el tipo `Client` no declara; `Subscription` no incluye `ultimo_acceso` ni `tooltips_vistos`. Verificá contra la tabla real antes de confiar en el tipo, y actualizá `types.ts` cuando toques una columna.
+**`src/lib/types.ts` se mantiene a mano, pero está verificado contra `information_schema` y es espejo del esquema real.** No hay codegen: si tocás una columna en Supabase, actualizá el tipo en el mismo cambio o vuelve a desfasarse. El criterio de nullability es pragmático — las columnas nullable en el DDL pero con default (`temperature`, `sold`, `contact_count`, `created_at`, …) se declaran no-null porque en la práctica siempre llegan con valor. Las columnas que existen en la base pero la app no usa (`email`, `kids`, `source`, `insignias`) están declaradas y anotadas como tales.
 
 `src/lib/clientesService.ts` cubre sólo una parte de los accesos; la mayoría de las pantallas (sobre todo `cliente/[id].tsx`) llama `supabase.from(...)` inline. No hay una capa de datos completa — no asumas que existe una función de servicio.
 
