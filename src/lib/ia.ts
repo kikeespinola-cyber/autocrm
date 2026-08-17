@@ -1,5 +1,4 @@
-const SUPABASE_URL = 'https://axkwixgbglrpkqqlgbfa.supabase.co'
-const SUPABASE_ANON_KEY = 'sb_publishable_pkAdPGNvjSMDoZ8BQgn-2Q_mpZUlnp_'
+import { supabase } from './supabase'
 
 export interface IAResponse {
   sugerencia: string
@@ -13,27 +12,26 @@ export async function generarSugerencia(
   contactCount: number,
   historial: { type: string; content: string | null; created_at: string }[]
 ): Promise<IAResponse> {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/sugerencia-ia`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({
-      clientName,
+  // Usar functions.invoke para que Supabase adjunte automáticamente
+  // el token del usuario logueado (no la anon key)
+  const { data, error } = await supabase.functions.invoke('sugerencia-ia', {
+    body: {
+      nombre: clientName,
       vehiculo,
       temperatura,
-      contactCount,
+      contactos: contactCount,
       historial,
-    }),
+    },
   })
 
-  const data = await response.json()
+  if (error) {
+    throw error
+  }
 
   const limpiar = (t: string) => (t || '').replace(/[#*_`]/g, '').trim()
 
   return {
-    sugerencia: limpiar(data.sugerencia),
-    mensaje: limpiar(data.mensaje),
+    sugerencia: limpiar(data?.sugerencia || ''),
+    mensaje: limpiar(data?.mensaje || ''),
   }
 }
