@@ -8,7 +8,8 @@
     "scheme": "vendix",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kikeespinola.vendix"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.kikeespinola.vendix"
     },
     "web": {
       "output": "static",
@@ -36,7 +38,12 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
