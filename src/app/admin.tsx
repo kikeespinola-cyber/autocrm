@@ -38,7 +38,6 @@ export default function AdminScreen() {
   const [loading, setLoading]       = useState(true)
   const [isAdmin, setIsAdmin]       = useState(false)
   const [checkeando, setCheckeando] = useState(true)
-  const [sincronizando, setSincronizando] = useState(false)
   const [verFinanzas, setVerFinanzas] = useState(false)
   const [search, setSearch]         = useState('')
   const [filtro, setFiltro]         = useState('todos')
@@ -114,48 +113,6 @@ export default function AdminScreen() {
     )
   }
 
-  // Devuelve null si salió bien, o el mensaje de error si falló.
-  // Los valores del trial viven en la función SQL: el cliente ya no tiene
-  // permiso para escribir status, plan ni current_period_end.
-  async function crearSuscripcion(userId: string): Promise<string | null> {
-    const { error } = await supabase.rpc('admin_crear_suscripcion', { p_user_id: userId })
-    return error ? mensajeError(error) : null
-  }
-
-  async function sincronizar() {
-    setSincronizando(true)
-    try {
-      const { data: sinSub, error: errorConsulta } = await supabase.rpc('usuarios_sin_suscripcion')
-      if (errorConsulta) throw errorConsulta
-
-      if (!sinSub || sinSub.length === 0) {
-        Alert.alert('Todo en orden', 'No hay usuarios sin suscripción')
-        return
-      }
-
-      let creadas = 0
-      const fallos: string[] = []
-      for (const u of sinSub) {
-        const fallo = await crearSuscripcion(u.id)
-        if (fallo) fallos.push(fallo)
-        else creadas++
-      }
-
-      if (fallos.length === 0) {
-        Alert.alert('Listo', `Se ${creadas === 1 ? 'creó' : 'crearon'} ${creadas} suscripción${creadas !== 1 ? 'es' : ''}`)
-      } else {
-        Alert.alert(
-          creadas > 0 ? 'Sincronización parcial' : 'No se pudo sincronizar',
-          `Creadas: ${creadas}. Fallaron: ${fallos.length}.\n${fallos[0]}`
-        )
-      }
-    } catch (e) {
-      Alert.alert('Error', mensajeError(e))
-    } finally {
-      setSincronizando(false)
-      await cargarUsuarios()
-    }
-  }
 
   if (checkeando) return (
     <View style={styles.loading}>
@@ -437,21 +394,6 @@ export default function AdminScreen() {
         )
       })}
 
-      <TouchableOpacity
-        style={styles.refreshBtn}
-        onPress={sincronizar}
-        disabled={sincronizando}
-        activeOpacity={0.8}
-      >
-        {sincronizando ? (
-          <ActivityIndicator color={T.accentText} size="small" />
-        ) : (
-          <Ionicons name="sync" size={16} color={T.accentText} />
-        )}
-        <Text style={styles.refreshBtnText}>
-          {sincronizando ? 'Sincronizando...' : 'Sincronizar usuarios sin suscripción'}
-        </Text>
-      </TouchableOpacity>
     </ScrollView>
   )
 }
@@ -529,6 +471,4 @@ const styles = StyleSheet.create({
   btn:            { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 11, backgroundColor: T.bg },
   btnText:        { fontSize: 12, fontWeight: '700' },
 
-  refreshBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: T.white, borderRadius: 15, paddingVertical: 16, marginTop: 10, borderWidth: 0.5, borderColor: T.accent + '55' },
-  refreshBtnText: { color: T.accentText, fontSize: 13, fontWeight: '700' },
 })
