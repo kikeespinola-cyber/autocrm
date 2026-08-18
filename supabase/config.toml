@@ -1,7 +1,10 @@
 
 [functions.sugerencia-ia]
 enabled = true
-verify_jwt = false
+# Explícito a propósito: el gateway ya rechaza requests sin token (verificado
+# con un POST sin Authorization, devuelve 401), pero la función no valida nada
+# por su cuenta. Si esto vuelve a false, la función queda abierta a cualquiera.
+verify_jwt = true
 import_map = "./functions/sugerencia-ia/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
