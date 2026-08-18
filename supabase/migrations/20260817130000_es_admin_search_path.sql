@@ -1,0 +1,42 @@
+-- Fija el search_path de es_admin() para que no dependa de quien la llame.
+--
+-- Síntoma: el panel admin fallaba con
+--   relation "subscriptions" does not exist
+-- al activar, desactivar o sincronizar.
+--
+-- Causa: SET search_path en una función aplica durante toda su ejecución,
+-- incluidas las funciones que llama que no fijen el suyo propio. Las funciones
+-- admin_cambiar_suscripcion y admin_crear_suscripcion corren con
+-- search_path = '' (protección estándar en SECURITY DEFINER contra hijacking
+-- de esquema) y llaman a public.es_admin(). Como es_admin() no fijaba su
+-- search_path, heredaba el vacío y su referencia desnuda a "subscriptions"
+-- dejaba de resolver contra ningún esquema.
+--
+-- El error lo delata: Postgres reporta el nombre tal como está escrito en la
+-- consulta que falla. Venía sin prefijo ("subscriptions", no
+-- "public.subscriptions"), o sea desde adentro de es_admin(), no desde las
+-- funciones nuevas, que tienen todas sus referencias calificadas.
+--
+-- Por eso las policies de RLS que usan es_admin() nunca fallaron: cuando la
+-- invocan desde una query normal, el search_path es el de la sesión
+-- ("$user", public) y el nombre desnudo resuelve bien. El bug sólo aparece
+-- cuando la llama alguien con search_path vacío.
+--
+-- Se usa ALTER FUNCTION ... SET en vez de reescribirla porque no toca el
+-- cuerpo ni la firma: un CREATE OR REPLACE que cambiara el tipo de retorno
+-- fallaría, y un DROP sería rechazado porque las policies dependen de ella.
+-- También preserva su SECURITY DEFINER, necesario para que no entre en
+-- recursión al leer subscriptions desde una policy sobre esa misma tabla.
+--
+-- pg_temp va explícito al final para que un objeto temporal no pueda sombrear
+-- a public: es la protección que se pierde al no poder usar search_path = ''.
+
+alter function public.es_admin() set search_path = public, pg_temp;
+
+
+-- Verificación (debe devolver proconfig = {search_path=public,pg_temp}):
+--
+--   select proname, proconfig,
+--          case when prosecdef then 'DEFINER' else 'INVOKER' end as seguridad
+--   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public' and p.proname = 'es_admin';

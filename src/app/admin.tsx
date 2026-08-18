@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 import { APP_NAME } from '../lib/marca'
+import { mensajeError } from '../lib/errores'
 
 const NEGRO = '#1A1A2E'
 
@@ -75,10 +76,15 @@ export default function AdminScreen() {
   }
 
   async function activar30Dias(userId: string) {
-    await supabase.from('subscriptions').update({
-      status: 'active',
-      current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    }).eq('user_id', userId)
+    const { error } = await supabase.rpc('admin_cambiar_suscripcion', {
+      p_user_id: userId,
+      p_status: 'active',
+      p_dias: 30,
+    })
+    if (error) {
+      Alert.alert('No se pudo activar', mensajeError(error))
+      return
+    }
     await cargarUsuarios()
   }
 
@@ -92,10 +98,15 @@ export default function AdminScreen() {
           text: 'Desactivar',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('subscriptions').update({
-              status: 'inactive',
-              current_period_end: new Date().toISOString(),
-            }).eq('user_id', userId)
+            const { error } = await supabase.rpc('admin_cambiar_suscripcion', {
+              p_user_id: userId,
+              p_status: 'inactive',
+              p_dias: 0,
+            })
+            if (error) {
+              Alert.alert('No se pudo desactivar', mensajeError(error))
+              return
+            }
             await cargarUsuarios()
           },
         },
@@ -103,34 +114,46 @@ export default function AdminScreen() {
     )
   }
 
-  async function crearSuscripcion(userId: string) {
-    await supabase.from('subscriptions').insert({
-      user_id: userId,
-      status: 'trial',
-      plan: 'individual',
-      current_period_end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      is_admin: false,
-      onboarding_completado: false,
-    })
+  // Devuelve null si salió bien, o el mensaje de error si falló.
+  // Los valores del trial viven en la función SQL: el cliente ya no tiene
+  // permiso para escribir status, plan ni current_period_end.
+  async function crearSuscripcion(userId: string): Promise<string | null> {
+    const { error } = await supabase.rpc('admin_crear_suscripcion', { p_user_id: userId })
+    return error ? mensajeError(error) : null
   }
 
   async function sincronizar() {
     setSincronizando(true)
     try {
-      const { data: sinSub } = await supabase.rpc('usuarios_sin_suscripcion')
-      if (sinSub && sinSub.length > 0) {
-        for (const u of sinSub) {
-          await crearSuscripcion(u.id)
-        }
-        Alert.alert('Listo', `Se crearon ${sinSub.length} suscripción${sinSub.length !== 1 ? 'es' : ''} pendiente${sinSub.length !== 1 ? 's' : ''}`)
-      } else {
+      const { data: sinSub, error: errorConsulta } = await supabase.rpc('usuarios_sin_suscripcion')
+      if (errorConsulta) throw errorConsulta
+
+      if (!sinSub || sinSub.length === 0) {
         Alert.alert('Todo en orden', 'No hay usuarios sin suscripción')
+        return
       }
-      await cargarUsuarios()
+
+      let creadas = 0
+      const fallos: string[] = []
+      for (const u of sinSub) {
+        const fallo = await crearSuscripcion(u.id)
+        if (fallo) fallos.push(fallo)
+        else creadas++
+      }
+
+      if (fallos.length === 0) {
+        Alert.alert('Listo', `Se ${creadas === 1 ? 'creó' : 'crearon'} ${creadas} suscripción${creadas !== 1 ? 'es' : ''}`)
+      } else {
+        Alert.alert(
+          creadas > 0 ? 'Sincronización parcial' : 'No se pudo sincronizar',
+          `Creadas: ${creadas}. Fallaron: ${fallos.length}.\n${fallos[0]}`
+        )
+      }
     } catch (e) {
-      Alert.alert('Error', 'No se pudo sincronizar')
+      Alert.alert('Error', mensajeError(e))
     } finally {
       setSincronizando(false)
+      await cargarUsuarios()
     }
   }
 
