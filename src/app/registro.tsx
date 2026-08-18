@@ -27,8 +27,8 @@ export default function RegistroScreen() {
       Alert.alert('Faltan datos', 'Completá todos los campos')
       return
     }
-    if (password.length < 6) {
-      Alert.alert('Contraseña corta', 'La contraseña debe tener al menos 6 caracteres')
+    if (password.length < 8) {
+      Alert.alert('Contraseña corta', 'La contraseña debe tener al menos 8 caracteres')
       return
     }
     if (password !== confirmar) {
@@ -45,7 +45,7 @@ export default function RegistroScreen() {
     setLoading(false)
   }
 
-  const passOk    = password.length >= 6
+  const passOk    = password.length >= 8
   const matchOk   = confirmar.length > 0 && password === confirmar
 
   return (
@@ -97,7 +97,7 @@ export default function RegistroScreen() {
             <Ionicons name="lock-closed-outline" size={18} color={T.muted} />
             <TextInput
               style={styles.input}
-              placeholder="Mínimo 6 caracteres"
+              placeholder="Mínimo 8 caracteres"
               placeholderTextColor={T.muted}
               value={password}
               onChangeText={setPassword}
