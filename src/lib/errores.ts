@@ -18,6 +18,26 @@ export function mensajeError(error: any): string {
     return 'Sin conexión. Revisá tu internet e intentá de nuevo.'
   }
 
+  // Límite de envío de emails (recuperar contraseña, confirmaciones)
+  if (
+    msg.includes('rate limit') ||
+    msg.includes('for security purposes') ||
+    error.code === 'over_email_send_rate_limit' ||
+    error.status === 429
+  ) {
+    return 'Ya pediste un link recién. Esperá unos minutos y probá de nuevo.'
+  }
+
+  // Contraseña nueva igual a la anterior
+  if (msg.includes('different from the old password') || error.code === 'same_password') {
+    return 'La contraseña nueva tiene que ser distinta de la anterior.'
+  }
+
+  // Contraseña demasiado corta según la config de Supabase
+  if (msg.includes('password should be at least') || error.code === 'weak_password') {
+    return 'La contraseña debe tener al menos 8 caracteres.'
+  }
+
   // Sesión expirada / no autorizado
   if (
     msg.includes('jwt') ||

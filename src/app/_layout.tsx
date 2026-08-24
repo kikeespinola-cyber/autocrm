@@ -1,12 +1,14 @@
 import { Tabs, useRouter, useSegments } from 'expo-router'
-import { Text, View, ActivityIndicator } from 'react-native'
+import { Text, View, ActivityIndicator, Alert } from 'react-native'
 import { useState, useEffect } from 'react'
+import * as Linking from 'expo-linking'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 import { APP_NAME } from '../lib/marca'
 import { ToastProvider } from '../components/Toast'
+import { parsearTokensRecovery } from '../lib/deepLinkAuth'
 
 const NEGRO = '#1A1A2E'
 
@@ -16,6 +18,10 @@ export default function Layout() {
   const insets = useSafeAreaInsets()
   const [session, setSession] = useState<any>(null)
   const [listo, setListo] = useState(false)
+  const [enRecuperacion, setEnRecuperacion] = useState(false)
+  // useLinkingURL (y no el deprecado useURL) porque devuelve la URL ya en el primer
+  // render: así marcamos enRecuperacion antes de que el guard pueda mandar a /login.
+  const urlEntrante = Linking.useLinkingURL()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -30,18 +36,55 @@ export default function Layout() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Deep link del mail de recuperación: vendix://restablecer-password#access_token=...
+  // Canjeamos los tokens acá porque el guard de abajo corre en este mismo layout y,
+  // mientras no haya sesión, expulsaría al usuario a /login antes de que alcancemos.
+  useEffect(() => {
+    if (!urlEntrante) return
+    const tokens = parsearTokensRecovery(urlEntrante)
+    if (!tokens) return
+
+    let cancelado = false
+    setEnRecuperacion(true)
+
+    supabase.auth
+      .setSession({ access_token: tokens.access_token, refresh_token: tokens.refresh_token })
+      .then(({ error }) => {
+        if (cancelado) return
+        if (error) {
+          setEnRecuperacion(false)
+          router.replace('/login')
+          Alert.alert('Link vencido', 'El link para restablecer tu contraseña venció o ya se usó. Pedí uno nuevo.')
+        } else {
+          router.replace('/restablecer-password')
+        }
+      })
+
+    return () => { cancelado = true }
+  }, [urlEntrante])
+
+  // Soltamos el freno del guard recién cuando el router ya llegó a la pantalla:
+  // de ahí en más la protege la lista blanca de abajo.
+  useEffect(() => {
+    if (enRecuperacion && segments[0] === 'restablecer-password') setEnRecuperacion(false)
+  }, [segments[0], enRecuperacion])
+
   useEffect(() => {
     if (!listo) return
-    const inLogin    = segments[0] === 'login'
-    const inRegistro = segments[0] === 'registro'
+    // Mientras canjeamos el token del mail todavía no hay sesión: no tocar nada.
+    if (enRecuperacion) return
 
-    if (!session && !inLogin && !inRegistro) {
+    const inLogin       = segments[0] === 'login'
+    const inRegistro    = segments[0] === 'registro'
+    const inRestablecer = segments[0] === 'restablecer-password'
+
+    if (!session && !inLogin && !inRegistro && !inRestablecer) {
       router.replace('/login')
     }
     if (session && (inLogin || inRegistro)) {
       router.replace('/')
     }
-  }, [session, listo])
+  }, [session, listo, enRecuperacion])
 
   if (!listo) {
     return (
@@ -59,7 +102,8 @@ export default function Layout() {
   const inOnboarding   = segments[0] === 'onboarding'
   const inRegistro     = segments[0] === 'registro'
   const inTrialVencido = segments[0] === 'trial-vencido'
-  const ocultarTabs    = inLogin || inOnboarding || inRegistro || inTrialVencido
+  const inRestablecer  = segments[0] === 'restablecer-password'
+  const ocultarTabs    = inLogin || inOnboarding || inRegistro || inTrialVencido || inRestablecer
 
   return (
     <ToastProvider>
@@ -141,6 +185,7 @@ export default function Layout() {
       <Tabs.Screen name="postventa" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="login" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="registro" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen name="restablecer-password" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="onboarding" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="trial-vencido" options={{ href: null, headerShown: false }} />
       <Tabs.Screen name="cliente/[id]" options={{ href: null, headerShown: false }} />
