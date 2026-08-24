@@ -243,7 +243,8 @@ export default function ClienteDetail() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      {/* Barra fija fuera del scroll: "Volver" y "Editar" quedan siempre a mano. */}
+      <View style={styles.headerBar}>
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
             <Ionicons name="chevron-back" size={20} color={NEGRO} />
@@ -254,284 +255,299 @@ export default function ClienteDetail() {
             <Ionicons name="create-outline" size={17} color={T.textSub} />
           </TouchableOpacity>
         </View>
+      </View>
 
-        <View style={styles.profileRow}>
-          <View style={[styles.avatar, { backgroundColor: tempDim(client.temperature) }]}>
-            <Text style={[styles.avatarText, { color: tempTextColor(client.temperature) }]}>
-              {client.name.slice(0,2).toUpperCase()}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.clientName}>{client.name}</Text>
-            <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: tempDim(client.temperature) }]}>
-                <Text style={[styles.badgeText, { color: tempTextColor(client.temperature) }]}>
-                  {tempLabel(client.temperature)}
+      {/* Toda la ficha scrollea, asi el panel de IA no puede empujar contenido
+          fuera de la pantalla por largo que sea el texto que devuelva el modelo.
+          El bloque de arriba va envuelto en un View para que el condicional de
+          undoBar no corra el indice del sticky header: ScrollView resuelve
+          stickyHeaderIndices con React.Children.toArray, que descarta los falsy. */}
+      <ScrollView
+        style={styles.scroll}
+        stickyHeaderIndices={[1]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View>
+          <View style={styles.headerInfo}>
+            <View style={styles.profileRow}>
+              <View style={[styles.avatar, { backgroundColor: tempDim(client.temperature) }]}>
+                <Text style={[styles.avatarText, { color: tempTextColor(client.temperature) }]}>
+                  {client.name.slice(0,2).toUpperCase()}
                 </Text>
               </View>
-              {client.etapa && (
-                <View style={[styles.badge, { backgroundColor: T.bg }]}>
-                  <Text style={[styles.badgeText, { color: T.textSub }]}>{etapaLabel[client.etapa]}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.clientName}>{client.name}</Text>
+                <View style={styles.badgeRow}>
+                  <View style={[styles.badge, { backgroundColor: tempDim(client.temperature) }]}>
+                    <Text style={[styles.badgeText, { color: tempTextColor(client.temperature) }]}>
+                      {tempLabel(client.temperature)}
+                    </Text>
+                  </View>
+                  {client.etapa && (
+                    <View style={[styles.badge, { backgroundColor: T.bg }]}>
+                      <Text style={[styles.badgeText, { color: T.textSub }]}>{etapaLabel[client.etapa]}</Text>
+                    </View>
+                  )}
+                  {client.calificacion ? (
+                    <View style={styles.starsRow}>
+                      {[...Array(client.calificacion)].map((_, i) => (
+                        <Ionicons key={i} name="star" size={11} color="#F59E0B" />
+                      ))}
+                    </View>
+                  ) : null}
+                  {client.motivo_descarte && (
+                    <View style={[styles.badge, { backgroundColor: T.redDim }]}>
+                      <Text style={[styles.badgeText, { color: T.red }]}>Descartado</Text>
+                    </View>
+                  )}
+                  {client.docs_received && (
+                    <View style={styles.inlineRow}>
+                      <Ionicons name="checkmark-circle" size={12} color={T.green} />
+                      <Text style={styles.docsTag}>Docs</Text>
+                    </View>
+                  )}
+                  {client.sold && (
+                    <View style={styles.inlineRow}>
+                      <Ionicons name="trophy" size={12} color={T.green} />
+                      <Text style={styles.soldTag}>Vendido</Text>
+                    </View>
+                  )}
                 </View>
-              )}
-              {client.calificacion ? (
-                <View style={styles.starsRow}>
-                  {[...Array(client.calificacion)].map((_, i) => (
-                    <Ionicons key={i} name="star" size={11} color="#F59E0B" />
-                  ))}
-                </View>
-              ) : null}
-              {client.motivo_descarte && (
-                <View style={[styles.badge, { backgroundColor: T.redDim }]}>
-                  <Text style={[styles.badgeText, { color: T.red }]}>Descartado</Text>
-                </View>
-              )}
-              {client.docs_received && (
-                <View style={styles.inlineRow}>
-                  <Ionicons name="checkmark-circle" size={12} color={T.green} />
-                  <Text style={styles.docsTag}>Docs</Text>
-                </View>
-              )}
-              {client.sold && (
-                <View style={styles.inlineRow}>
-                  <Ionicons name="trophy" size={12} color={T.green} />
-                  <Text style={styles.soldTag}>Vendido</Text>
-                </View>
-              )}
+              </View>
             </View>
-          </View>
-        </View>
 
-        {estadoTemp && (
-          <View style={[styles.tempHint, { backgroundColor: estadoTemp.color + '14' }]}>
-            <Ionicons name={estadoTemp.icon as any} size={15} color={estadoTemp.color} />
-            <Text style={[styles.tempHintText, { color: estadoTemp.color }]}>{estadoTemp.texto}</Text>
-          </View>
-        )}
+            {estadoTemp && (
+              <View style={[styles.tempHint, { backgroundColor: estadoTemp.color + '14' }]}>
+                <Ionicons name={estadoTemp.icon as any} size={15} color={estadoTemp.color} />
+                <Text style={[styles.tempHintText, { color: estadoTemp.color }]}>{estadoTemp.texto}</Text>
+              </View>
+            )}
 
-        {client.vehicle_photo_url ? (
-          <TouchableOpacity onPress={subirFotoVehiculo} style={styles.fotoVehiculoContainer} activeOpacity={0.9}>
-            <Image source={{ uri: client.vehicle_photo_url }} style={styles.fotoVehiculo} resizeMode="cover" />
-            <View style={styles.fotoVehiculoEdit}>
-              <Ionicons name={subiendoFoto ? 'hourglass-outline' : 'camera'} size={13} color="#fff" />
-              <Text style={styles.fotoEditText}>{subiendoFoto ? 'Subiendo...' : 'Cambiar foto'}</Text>
+            {client.vehicle_photo_url ? (
+              <TouchableOpacity onPress={subirFotoVehiculo} style={styles.fotoVehiculoContainer} activeOpacity={0.9}>
+                <Image source={{ uri: client.vehicle_photo_url }} style={styles.fotoVehiculo} resizeMode="cover" />
+                <View style={styles.fotoVehiculoEdit}>
+                  <Ionicons name={subiendoFoto ? 'hourglass-outline' : 'camera'} size={13} color="#fff" />
+                  <Text style={styles.fotoEditText}>{subiendoFoto ? 'Subiendo...' : 'Cambiar foto'}</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.fotoVehiculoVacia} onPress={subirFotoVehiculo} activeOpacity={0.7}>
+                <Ionicons name={subiendoFoto ? 'hourglass-outline' : 'car-sport-outline'} size={22} color={T.muted} />
+                <Text style={styles.fotoVaciaText}>
+                  {subiendoFoto ? 'Subiendo...' : 'Agregar foto del vehículo'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {ultimaAccion && (
+            <View style={styles.undoBar}>
+              <View style={styles.inlineRow}>
+                <Ionicons name="checkmark-circle" size={15} color="#fff" />
+                <Text style={styles.undoText}>Temperatura actualizada</Text>
+              </View>
+              <TouchableOpacity onPress={deshacer}>
+                <Text style={styles.undoBtn}>Deshacer</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.fotoVehiculoVacia} onPress={subirFotoVehiculo} activeOpacity={0.7}>
-            <Ionicons name={subiendoFoto ? 'hourglass-outline' : 'car-sport-outline'} size={22} color={T.muted} />
-            <Text style={styles.fotoVaciaText}>
-              {subiendoFoto ? 'Subiendo...' : 'Agregar foto del vehículo'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {ultimaAccion && (
-        <View style={styles.undoBar}>
-          <View style={styles.inlineRow}>
-            <Ionicons name="checkmark-circle" size={15} color="#fff" />
-            <Text style={styles.undoText}>Temperatura actualizada</Text>
-          </View>
-          <TouchableOpacity onPress={deshacer}>
-            <Text style={styles.undoBtn}>Deshacer</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <TouchableOpacity style={styles.iaStrip} onPress={() => setIaExpandida(!iaExpandida)} activeOpacity={0.85}>
-        <View style={styles.iaHeader}>
-          <View style={styles.inlineRow}>
-            <Ionicons name="sparkles" size={14} color={T.accentText} />
-            <Text style={styles.iaTitle}>SUGERENCIA IA</Text>
-          </View>
-          {cargandoIA ? (
-            <Text style={styles.iaToggle}>Analizando...</Text>
-          ) : (
-            <Ionicons name={iaExpandida ? 'chevron-up' : 'chevron-down'} size={17} color={T.accentText} />
           )}
-        </View>
-        {iaExpandida && !cargandoIA && (
-          <>
-            <Text style={styles.iaText}>{sugerencia}</Text>
-            {mensajeIA ? (
-              <>
-                <View style={styles.iaDivider} />
-                <Text style={styles.iaMensajeLabel}>MENSAJE LISTO PARA WHATSAPP</Text>
-                <Text style={styles.iaMensaje}>{mensajeIA}</Text>
-                <View style={styles.iaBtnRow}>
-                  <TouchableOpacity style={styles.iaWaBtn} onPress={() => abrirWhatsApp(mensajeIA)} activeOpacity={0.85}>
-                    <Ionicons name="logo-whatsapp" size={15} color="#fff" />
-                    <Text style={styles.iaWaText}>Enviar por WhatsApp</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.iaCopyBtnSm} onPress={copiarMensaje} activeOpacity={0.8}>
-                    <Ionicons name={copiado ? 'checkmark' : 'copy-outline'} size={15} color={copiado ? '#10B981' : T.textSub} />
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : null}
-          </>
-        )}
-      </TouchableOpacity>
 
-      <View style={styles.quickActions}>
-        {[
-          { icon:'call',                label:'Llamé',      color:T.green,   onPress: () => registrarContacto('call', 'Llamada realizada') },
-          { icon:'logo-whatsapp',       label:'WA enviado', color:'#25D366', onPress: () => registrarContacto('whatsapp', 'WhatsApp enviado') },
-          { icon:'close-circle',        label:'No atendió', color:T.red,     onPress: () => registrarContacto('call', 'Llamada — no contestó') },
-          { icon:'create',              label:'Nota',       color:'#4A8AE8', onPress: () => setModalNota(true) },
-        ].map(a => (
-          <TouchableOpacity key={a.label} style={styles.qaBtn} onPress={a.onPress} activeOpacity={0.7}>
-            <View style={[styles.qaIconWrap, { backgroundColor: a.color + '18' }]}>
-              <Ionicons name={a.icon as any} size={17} color={a.color} />
+          <TouchableOpacity style={styles.iaStrip} onPress={() => setIaExpandida(!iaExpandida)} activeOpacity={0.85}>
+            <View style={styles.iaHeader}>
+              <View style={styles.inlineRow}>
+                <Ionicons name="sparkles" size={14} color={T.accentText} />
+                <Text style={styles.iaTitle}>SUGERENCIA IA</Text>
+              </View>
+              {cargandoIA ? (
+                <Text style={styles.iaToggle}>Analizando...</Text>
+              ) : (
+                <Ionicons name={iaExpandida ? 'chevron-up' : 'chevron-down'} size={17} color={T.accentText} />
+              )}
             </View>
-            <Text style={styles.qaLabel}>{a.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.secondActions}>
-        <TouchableOpacity style={styles.secBtn} onPress={() => abrirWhatsApp()} activeOpacity={0.7}>
-          <Ionicons name="logo-whatsapp" size={14} color="#25D366" />
-          <Text style={[styles.secBtnText, { color: '#25D366' }]}>WhatsApp</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secBtn} onPress={llamar} activeOpacity={0.7}>
-          <Ionicons name="call" size={14} color={T.green} />
-          <Text style={[styles.secBtnText, { color: T.green }]}>Llamar</Text>
-        </TouchableOpacity>
-        {!inactivo && (
-          <TouchableOpacity style={[styles.secBtn, styles.secBtnDark]} onPress={marcarVendido} activeOpacity={0.85}>
-            <Ionicons name="trophy" size={14} color="#fff" />
-            <Text style={[styles.secBtnText, { color: '#fff' }]}>Vendido</Text>
-          </TouchableOpacity>
-        )}
-        {!inactivo && (
-          <TouchableOpacity style={styles.secBtn} onPress={() => setModalDescarte(true)} activeOpacity={0.7}>
-            <Ionicons name="close-circle-outline" size={14} color={T.red} />
-            <Text style={[styles.secBtnText, { color: T.red }]}>Descartar</Text>
-          </TouchableOpacity>
-        )}
-        {client.motivo_descarte && (
-          <View style={[styles.secBtn, { backgroundColor: T.redDim, borderColor: T.red + '44' }]}>
-            <Ionicons name="close-circle" size={14} color={T.red} />
-            <Text style={[styles.secBtnText, { color: T.red }]}>Descartado</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.tabs}>
-        {(['info','historial'] as const).map(t => (
-          <TouchableOpacity key={t} onPress={() => setTab(t)} style={[styles.tabBtn, tab === t && styles.tabBtnActive]}>
-            <Text style={[styles.tabText, { color: tab === t ? NEGRO : T.muted }]}>
-              {t === 'info' ? 'Info' : 'Historial'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 16, paddingBottom: 40 }} nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
-        {tab === 'info' && (
-          <>
-            <View style={styles.infoCard}>
-              {[
-                { label: 'Teléfono',          value: client.phone },
-                { label: 'Vehículo',          value: client.vehicle_interest },
-                { label: 'Presupuesto',       value: formatDual(client.budget), accent: true },
-                { label: 'Trabajo',           value: client.job },
-                { label: 'Cumpleaños',        value: client.birthday },
-                { label: 'Club',              value: client.club },
-                { label: 'Etapa',             value: client.etapa ? etapaLabel[client.etapa] : null },
-                { label: 'Origen',            value: client.origen ? origenLabel[client.origen] : null },
-                { label: 'Comentario clave',  value: client.comentario_clave },
-                { label: 'Motivo descarte',   value: client.motivo_descarte },
-                { label: 'Notas',             value: client.notes },
-                { label: 'Contactos',         value: `${client.contact_count} realizados` },
-              ].filter(r => r.value).map((r, i, arr) => (
-                <View key={r.label} style={[styles.infoRow, i === arr.length-1 && { borderBottomWidth: 0 }]}>
-                  <Text style={styles.infoLabel}>{r.label}</Text>
-                  <Text style={[styles.infoValue, r.accent && { color: T.accentText, fontWeight: '700' }]}>{r.value}</Text>
-                </View>
-              ))}
-            </View>
-
-            {!inactivo && (
+            {iaExpandida && !cargandoIA && (
               <>
-                <Text style={styles.sectionLabel}>CALIFICACIÓN DEL LEAD</Text>
-                <View style={styles.starsBox}>
-                  {[1, 2, 3, 4, 5].map(n => {
-                    const activa = (client.calificacion || 0) >= n
-                    return (
-                      <TouchableOpacity
-                        key={n}
-                        onPress={async () => {
-                          await supabase.from('clients').update({ calificacion: n }).eq('id', id)
-                          setClient(prev => prev ? { ...prev, calificacion: n } : prev)
-                        }}
-                        style={styles.starBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name={activa ? 'star' : 'star-outline'}
-                          size={26}
-                          color={activa ? '#F59E0B' : T.border}
-                        />
+                <Text style={styles.iaText}>{sugerencia}</Text>
+                {mensajeIA ? (
+                  <>
+                    <View style={styles.iaDivider} />
+                    <Text style={styles.iaMensajeLabel}>MENSAJE LISTO PARA WHATSAPP</Text>
+                    <Text style={styles.iaMensaje}>{mensajeIA}</Text>
+                    <View style={styles.iaBtnRow}>
+                      <TouchableOpacity style={styles.iaWaBtn} onPress={() => abrirWhatsApp(mensajeIA)} activeOpacity={0.85}>
+                        <Ionicons name="logo-whatsapp" size={15} color="#fff" />
+                        <Text style={styles.iaWaText}>Enviar por WhatsApp</Text>
                       </TouchableOpacity>
-                    )
-                  })}
-                </View>
-
-                <Text style={styles.sectionLabel}>TEMPERATURA</Text>
-                <View style={styles.tempRow}>
-                  {(['hot','warm','cold'] as const).map(t => {
-                    const act = client.temperature === t
-                    return (
-                      <TouchableOpacity
-                        key={t}
-                        onPress={() => cambiarTemp(t)}
-                        activeOpacity={0.8}
-                        style={[styles.tempBtn, {
-                          backgroundColor: act ? tempColor(t) : T.white,
-                          borderColor: act ? tempColor(t) : T.border,
-                        }]}
-                      >
-                        <View style={[styles.dot, { backgroundColor: act ? '#fff' : tempColor(t) }]} />
-                        <Text style={[styles.tempBtnText, { color: act ? '#fff' : T.textSub }]}>
-                          {tempLabel(t)}
-                        </Text>
+                      <TouchableOpacity style={styles.iaCopyBtnSm} onPress={copiarMensaje} activeOpacity={0.8}>
+                        <Ionicons name={copiado ? 'checkmark' : 'copy-outline'} size={15} color={copiado ? '#10B981' : T.textSub} />
                       </TouchableOpacity>
-                    )
-                  })}
-                </View>
+                    </View>
+                  </>
+                ) : null}
               </>
             )}
-          </>
-        )}
+          </TouchableOpacity>
 
-        {tab === 'historial' && (
-          <>
-            {interactions.length === 0 ? (
-              <View style={styles.empty}>
-                <Ionicons name="time-outline" size={36} color={T.muted} />
-                <Text style={styles.emptyText}>Sin interacciones todavía</Text>
-                <Text style={styles.emptySub}>Usá los botones de arriba para registrar contacto</Text>
-              </View>
-            ) : interactions.map(i => (
-              <View key={i.id} style={styles.interactionCard}>
-                <View style={[styles.interactionIconWrap, { backgroundColor: (INTERACTION_COLOR[i.type] || T.muted) + '18' }]}>
-                  <Ionicons
-                    name={INTERACTION_ICON[i.type] || 'document-text'}
-                    size={16}
-                    color={INTERACTION_COLOR[i.type] || T.muted}
-                  />
+          <View style={styles.quickActions}>
+            {[
+              { icon:'call',                label:'Llamé',      color:T.green,   onPress: () => registrarContacto('call', 'Llamada realizada') },
+              { icon:'logo-whatsapp',       label:'WA enviado', color:'#25D366', onPress: () => registrarContacto('whatsapp', 'WhatsApp enviado') },
+              { icon:'close-circle',        label:'No atendió', color:T.red,     onPress: () => registrarContacto('call', 'Llamada — no contestó') },
+              { icon:'create',              label:'Nota',       color:'#4A8AE8', onPress: () => setModalNota(true) },
+            ].map(a => (
+              <TouchableOpacity key={a.label} style={styles.qaBtn} onPress={a.onPress} activeOpacity={0.7}>
+                <View style={[styles.qaIconWrap, { backgroundColor: a.color + '18' }]}>
+                  <Ionicons name={a.icon as any} size={17} color={a.color} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.interactionContent}>{i.content}</Text>
-                  <Text style={styles.interactionDate}>{new Date(i.created_at).toLocaleString('es-PY')}</Text>
-                </View>
-              </View>
+                <Text style={styles.qaLabel}>{a.label}</Text>
+              </TouchableOpacity>
             ))}
-          </>
-        )}
+          </View>
+
+          <View style={styles.secondActions}>
+            <TouchableOpacity style={styles.secBtn} onPress={() => abrirWhatsApp()} activeOpacity={0.7}>
+              <Ionicons name="logo-whatsapp" size={14} color="#25D366" />
+              <Text style={[styles.secBtnText, { color: '#25D366' }]}>WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secBtn} onPress={llamar} activeOpacity={0.7}>
+              <Ionicons name="call" size={14} color={T.green} />
+              <Text style={[styles.secBtnText, { color: T.green }]}>Llamar</Text>
+            </TouchableOpacity>
+            {!inactivo && (
+              <TouchableOpacity style={[styles.secBtn, styles.secBtnDark]} onPress={marcarVendido} activeOpacity={0.85}>
+                <Ionicons name="trophy" size={14} color="#fff" />
+                <Text style={[styles.secBtnText, { color: '#fff' }]}>Vendido</Text>
+              </TouchableOpacity>
+            )}
+            {!inactivo && (
+              <TouchableOpacity style={styles.secBtn} onPress={() => setModalDescarte(true)} activeOpacity={0.7}>
+                <Ionicons name="close-circle-outline" size={14} color={T.red} />
+                <Text style={[styles.secBtnText, { color: T.red }]}>Descartar</Text>
+              </TouchableOpacity>
+            )}
+            {client.motivo_descarte && (
+              <View style={[styles.secBtn, { backgroundColor: T.redDim, borderColor: T.red + '44' }]}>
+                <Ionicons name="close-circle" size={14} color={T.red} />
+                <Text style={[styles.secBtnText, { color: T.red }]}>Descartado</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.tabs}>
+          {(['info','historial'] as const).map(t => (
+            <TouchableOpacity key={t} onPress={() => setTab(t)} style={[styles.tabBtn, tab === t && styles.tabBtnActive]}>
+              <Text style={[styles.tabText, { color: tab === t ? NEGRO : T.muted }]}>
+                {t === 'info' ? 'Info' : 'Historial'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.tabContent}>
+          {tab === 'info' && (
+            <>
+              <View style={styles.infoCard}>
+                {[
+                  { label: 'Teléfono',          value: client.phone },
+                  { label: 'Vehículo',          value: client.vehicle_interest },
+                  { label: 'Presupuesto',       value: formatDual(client.budget), accent: true },
+                  { label: 'Trabajo',           value: client.job },
+                  { label: 'Cumpleaños',        value: client.birthday },
+                  { label: 'Club',              value: client.club },
+                  { label: 'Etapa',             value: client.etapa ? etapaLabel[client.etapa] : null },
+                  { label: 'Origen',            value: client.origen ? origenLabel[client.origen] : null },
+                  { label: 'Comentario clave',  value: client.comentario_clave },
+                  { label: 'Motivo descarte',   value: client.motivo_descarte },
+                  { label: 'Notas',             value: client.notes },
+                  { label: 'Contactos',         value: `${client.contact_count} realizados` },
+                ].filter(r => r.value).map((r, i, arr) => (
+                  <View key={r.label} style={[styles.infoRow, i === arr.length-1 && { borderBottomWidth: 0 }]}>
+                    <Text style={styles.infoLabel}>{r.label}</Text>
+                    <Text style={[styles.infoValue, r.accent && { color: T.accentText, fontWeight: '700' }]}>{r.value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {!inactivo && (
+                <>
+                  <Text style={styles.sectionLabel}>CALIFICACIÓN DEL LEAD</Text>
+                  <View style={styles.starsBox}>
+                    {[1, 2, 3, 4, 5].map(n => {
+                      const activa = (client.calificacion || 0) >= n
+                      return (
+                        <TouchableOpacity
+                          key={n}
+                          onPress={async () => {
+                            await supabase.from('clients').update({ calificacion: n }).eq('id', id)
+                            setClient(prev => prev ? { ...prev, calificacion: n } : prev)
+                          }}
+                          style={styles.starBtn}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons
+                            name={activa ? 'star' : 'star-outline'}
+                            size={26}
+                            color={activa ? '#F59E0B' : T.border}
+                          />
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+
+                  <Text style={styles.sectionLabel}>TEMPERATURA</Text>
+                  <View style={styles.tempRow}>
+                    {(['hot','warm','cold'] as const).map(t => {
+                      const act = client.temperature === t
+                      return (
+                        <TouchableOpacity
+                          key={t}
+                          onPress={() => cambiarTemp(t)}
+                          activeOpacity={0.8}
+                          style={[styles.tempBtn, {
+                            backgroundColor: act ? tempColor(t) : T.white,
+                            borderColor: act ? tempColor(t) : T.border,
+                          }]}
+                        >
+                          <View style={[styles.dot, { backgroundColor: act ? '#fff' : tempColor(t) }]} />
+                          <Text style={[styles.tempBtnText, { color: act ? '#fff' : T.textSub }]}>
+                            {tempLabel(t)}
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                </>
+              )}
+            </>
+          )}
+
+          {tab === 'historial' && (
+            <>
+              {interactions.length === 0 ? (
+                <View style={styles.empty}>
+                  <Ionicons name="time-outline" size={36} color={T.muted} />
+                  <Text style={styles.emptyText}>Sin interacciones todavía</Text>
+                  <Text style={styles.emptySub}>Usá los botones de arriba para registrar contacto</Text>
+                </View>
+              ) : interactions.map(i => (
+                <View key={i.id} style={styles.interactionCard}>
+                  <View style={[styles.interactionIconWrap, { backgroundColor: (INTERACTION_COLOR[i.type] || T.muted) + '18' }]}>
+                    <Ionicons
+                      name={INTERACTION_ICON[i.type] || 'document-text'}
+                      size={16}
+                      color={INTERACTION_COLOR[i.type] || T.muted}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.interactionContent}>{i.content}</Text>
+                    <Text style={styles.interactionDate}>{new Date(i.created_at).toLocaleString('es-PY')}</Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+        </View>
       </ScrollView>
 
       <Modal visible={modalNota} animationType="slide" transparent={true}>
@@ -625,7 +641,8 @@ const styles = StyleSheet.create({
   loading:               { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
   inlineRow:             { flexDirection: 'row', alignItems: 'center', gap: 5 },
 
-  header:                { backgroundColor: T.white, borderBottomWidth: 0.5, borderBottomColor: T.border },
+  headerBar:             { backgroundColor: T.white },
+  headerInfo:            { backgroundColor: T.white, borderBottomWidth: 0.5, borderBottomColor: T.border },
   headerTop:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 10 },
   headerBtn:             { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 4 },
   back:                  { color: NEGRO, fontSize: 15, fontWeight: '600' },
@@ -686,6 +703,7 @@ const styles = StyleSheet.create({
   tabText:               { fontSize: 13.5, fontWeight: '600' },
 
   scroll:                { flex: 1 },
+  tabContent:            { padding: 16, paddingBottom: 40 },
   infoCard:              { backgroundColor: T.white, borderRadius: 16, padding: 15, marginBottom: 18, borderWidth: 0.5, borderColor: T.border },
   infoRow:               { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: T.border },
   infoLabel:             { color: T.muted, fontSize: 12 },
