@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 import { APP_NAME, APP_FOOTER } from '../lib/marca'
 import { mensajeError } from '../lib/errores'
+import { asegurarSesionRecovery, olvidarTokensRecovery } from '../lib/deepLinkAuth'
 
 const NEGRO = '#1A1A2E'
 
@@ -23,20 +24,37 @@ export default function RestablecerPasswordScreen() {
   const [guardando, setGuardando] = useState(false)
 
   // El canje del token del mail lo hace _layout.tsx (tiene que ganarle al guard de sesión).
-  // Acá sólo esperamos a que la sesión de recuperación exista.
+  // Acá esperamos a que la sesión exista, y si se cae despues la rehacemos: el estado
+  // no queda latcheado en 'listo' mostrando un formulario que ya no puede guardar.
   useEffect(() => {
     let vivo = true
+    let yaListo = false
+    const marcarListo = () => { yaListo = true; setEstado('listo') }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (vivo && session) setEstado('listo')
+      if (vivo && session) marcarListo()
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, session) => {
-      if (vivo && session) setEstado('listo')
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((evento, session) => {
+      if (!vivo) return
+      if (session) { marcarListo(); return }
+      // El arranque lo resuelve el getSession de arriba junto con el canje de _layout.
+      if (evento === 'INITIAL_SESSION') return
+      // Perdimos la sesión en medio del flujo: intentamos rehacerla con los tokens
+      // del link antes de dar el formulario por bueno.
+      asegurarSesionRecovery().then(ok => {
+        if (!vivo) return
+        if (ok) marcarListo()
+        else setEstado('invalido')
+      })
     })
 
-    const timeout = setTimeout(() => {
-      if (vivo) setEstado(actual => (actual === 'verificando' ? 'invalido' : actual))
+    const timeout = setTimeout(async () => {
+      if (!vivo || yaListo) return
+      const ok = await asegurarSesionRecovery()
+      if (!vivo) return
+      if (ok) marcarListo()
+      else setEstado('invalido')
     }, ESPERA_MAXIMA_MS)
 
     return () => {
@@ -62,8 +80,22 @@ export default function RestablecerPasswordScreen() {
 
     setGuardando(true)
     try {
+      // No asumimos que la sesión sigue viva: entre que cargó el formulario y este
+      // tap pueden haber pasado minutos, y auth-js puede haberla descartado.
+      const conSesion = await asegurarSesionRecovery()
+      if (!conSesion) {
+        setEstado('invalido')
+        Alert.alert(
+          'Se perdió la sesión del link',
+          'Pedí un link nuevo desde la pantalla de ingreso.'
+        )
+        return
+      }
+
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
+
+      olvidarTokensRecovery()
       Alert.alert('Listo', 'Tu contraseña quedó actualizada', [
         { text: 'Entrar', onPress: () => router.replace('/') },
       ])
@@ -75,8 +107,9 @@ export default function RestablecerPasswordScreen() {
   }
 
   // Si abandona el flujo cerramos la sesión de recuperación: entró con un link,
-  // no con su contraseña.
+  // no con su contraseña. Olvidamos los tokens primero para no rehacerla sola.
   async function cancelar() {
+    olvidarTokensRecovery()
     await supabase.auth.signOut()
     router.replace('/login')
   }

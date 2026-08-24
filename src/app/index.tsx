@@ -86,6 +86,10 @@ export default function HoyScreen() {
     }
 
     const { data: { user } } = await supabase.auth.getUser()
+    // Sin sesión no seguimos: todo lo de abajo filtra por user_id y con undefined
+    // la query sale mal formada. El guard de _layout se encarga de mandar a /login.
+    if (!user) return
+
     const hoyISO = new Date().toISOString().split('T')[0]
     const { data: r } = await supabase
       .from('reuniones')

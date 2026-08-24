@@ -7,9 +7,42 @@
 // Los tokens vienen en el fragmento (#), no en query params: Linking.parse() no los ve,
 // por eso parseamos a mano en vez de usar URLSearchParams (el polyfill de Hermes es parcial).
 
+import { supabase } from './supabase'
+
 export type TokensRecovery = {
   access_token: string
   refresh_token: string
+}
+
+// Los tokens del link quedan en memoria por si hay que rehacer la sesión. auth-js
+// puede descartarla solo entre que abrimos la pantalla y el usuario toca Guardar:
+// un getUser() que vuelve con session-missing la borra, y un refresh fallido con
+// el access token ya vencido tambien. Sin esto, updateUser tira "Auth session missing".
+let tokensPendientes: TokensRecovery | null = null
+
+export function guardarTokensRecovery(tokens: TokensRecovery) {
+  tokensPendientes = tokens
+}
+
+export function olvidarTokensRecovery() {
+  tokensPendientes = null
+}
+
+// true si al terminar hay sesión activa: la que ya estaba, o una rehecha con los
+// tokens del link. Es lo que hay que llamar antes de cualquier operación que
+// necesite la sesión de recuperación, en vez de asumir que sigue viva.
+export async function asegurarSesionRecovery(): Promise<boolean> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session) return true
+
+  if (!tokensPendientes) return false
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: tokensPendientes.access_token,
+    refresh_token: tokensPendientes.refresh_token,
+  })
+  if (error) return false
+  return !!data.session
 }
 
 function leerParams(cadena: string): Record<string, string> {

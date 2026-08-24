@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
 import { APP_NAME } from '../lib/marca'
 import { ToastProvider } from '../components/Toast'
-import { parsearTokensRecovery } from '../lib/deepLinkAuth'
+import { parsearTokensRecovery, guardarTokensRecovery } from '../lib/deepLinkAuth'
 
 const NEGRO = '#1A1A2E'
 
@@ -46,6 +46,9 @@ export default function Layout() {
 
     let cancelado = false
     setEnRecuperacion(true)
+    // Los dejamos guardados antes de canjearlos: la pantalla los necesita si la
+    // sesión se cae despues, para rehacerla sin volver a pedir un link.
+    guardarTokensRecovery(tokens)
 
     supabase.auth
       .setSession({ access_token: tokens.access_token, refresh_token: tokens.refresh_token })
