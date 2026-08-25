@@ -39,7 +39,7 @@ export interface Client {
   notes: string | null
   contact_count: number             // default 0
   last_contact_at: string | null
-  next_contact_at: string | null    // existe pero nada la escribe: hoy es null en todas las filas
+  next_contact_at: string | null    // fecha de contacto fijada a mano desde la ficha; null = manda la regla de temperatura
   vehicle_photo_url: string | null
   created_at: string                // default now()
   updated_at: string                // default now(); getClients() ordena por esta columna

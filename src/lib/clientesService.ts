@@ -31,8 +31,12 @@ export async function getRemindersToday(): Promise<Reminder[]> {
   return data || []
 }
 
-// Traer clientes que necesitan contacto hoy según protocolo
-export async function getClientsDueToday(): Promise<Client[]> {
+// Traer clientes con fecha de contacto fijada a mano que ya venció.
+// Ojo: next_contact_at sólo se escribe desde la ficha del cliente (la regla
+// automática de protocolo.ts se calcula en memoria y no se persiste), así que
+// esto NO devuelve todo lo que toca contactar hoy — eso lo arma "Tu día" en
+// memoria con necesitaContactoHoy(). Hoy no se llama desde ninguna pantalla.
+export async function getClientesConFechaVencida(): Promise<Client[]> {
   const ahora = new Date().toISOString()
 
   const { data, error } = await supabase

@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
+import { proximoContactoTexto } from '../lib/protocolo'
 import { T } from '../lib/theme'
 import Tooltip from '../components/Tooltip'
 import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
@@ -187,6 +188,14 @@ export default function PipelineScreen() {
                         <Text style={styles.cardEtapa}>{ETAPA_LABEL[c.etapa]}</Text>
                       </View>
                     ) : null}
+                    {/* El pipeline filtra por temperatura, pero si el cliente
+                        tiene fecha fijada esa regla no lo alcanza: hay que verlo. */}
+                    {c.next_contact_at ? (
+                      <View style={styles.inlineRow}>
+                        <Ionicons name="calendar" size={11} color={T.purpleText} />
+                        <Text style={styles.cardFecha}>{proximoContactoTexto(c)}</Text>
+                      </View>
+                    ) : null}
                   </View>
 
                   <View style={styles.actions}>
@@ -271,6 +280,7 @@ const styles = StyleSheet.create({
   cardName:     { color: NEGRO, fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
   cardVehicle:  { color: T.textSub, fontSize: 12.5, marginTop: 2 },
   cardEtapa:    { color: T.muted, fontSize: 11 },
+  cardFecha:    { color: T.purpleText, fontSize: 11, fontWeight: '700' },
 
   actions:      { flexDirection: 'row', gap: 6 },
   actionBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },

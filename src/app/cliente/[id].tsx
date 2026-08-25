@@ -8,9 +8,31 @@ import { generarSugerencia } from '../../lib/ia'
 import { useTipoCambio } from '../../hooks/useTipoCambio'
 import { elegirImagen, subirImagen } from '../../lib/imagenService'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../../lib/theme'
+import {
+  proximoContactoTexto,
+  fechaCorta,
+  fechaFijadaEnDias,
+  fechaFijadaEnMeses,
+  parsearFechaFijada,
+  esAnteriorAHoy,
+} from '../../lib/protocolo'
 import * as Clipboard from 'expo-clipboard'
 
 const NEGRO = '#1A1A2E'
+
+// Atajos del selector de próximo contacto. valor() se evalúa al tocar el chip,
+// no al montar la pantalla, para que la cuenta salga del día real del toque.
+const OPCIONES_FECHA = [
+  { label: 'En 1 semana', valor: () => fechaFijadaEnDias(7) },
+  { label: 'En 15 días',  valor: () => fechaFijadaEnDias(15) },
+  { label: 'En 1 mes',    valor: () => fechaFijadaEnMeses(1) },
+  { label: 'En 3 meses',  valor: () => fechaFijadaEnMeses(3) },
+]
+
+// "lunes 12 de octubre"
+function fechaLarga(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-PY', { weekday: 'long', day: 'numeric', month: 'long' })
+}
 
 const INTERACTION_ICON: Record<string, any> = {
   call:     'call',
@@ -54,6 +76,8 @@ export default function ClienteDetail() {
   const [tab, setTab]                     = useState<'info'|'historial'>('info')
   const [modalNota, setModalNota]         = useState(false)
   const [modalDescarte, setModalDescarte] = useState(false)
+  const [modalFecha, setModalFecha]       = useState(false)
+  const [fechaTexto, setFechaTexto]       = useState('')
   const [nota, setNota]                   = useState('')
   const [motivoDescarte, setMotivoDescarte] = useState('')
   const [guardando, setGuardando]         = useState(false)
@@ -101,9 +125,47 @@ export default function ClienteDetail() {
     await supabase.from('interactions').insert({ client_id: id, type, content })
     await supabase.from('clients').update({
       last_contact_at: new Date().toISOString(),
-      contact_count: (client?.contact_count || 0) + 1
+      contact_count: (client?.contact_count || 0) + 1,
+      // La fecha fijada es de un solo uso: se cumplió el contacto, vuelve a
+      // mandar la regla de temperatura. Si no se limpiara, el cliente quedaría
+      // pegado como vencido para siempre.
+      next_contact_at: null,
     }).eq('id', id)
     await cargar()
+  }
+
+  // Fija la próxima fecha de contacto a mano: anula la regla de temperatura para
+  // este cliente hasta que se registre un contacto.
+  async function fijarFecha(iso: string) {
+    await supabase.from('clients').update({ next_contact_at: iso }).eq('id', id)
+    // El motivo queda en el historial. No toca contact_count ni last_contact_at:
+    // fijar una fecha no es haber contactado al cliente.
+    await supabase.from('interactions').insert({
+      client_id: id,
+      type: 'note',
+      content: `Próximo contacto fijado para el ${fechaCorta(iso)}`,
+    })
+    setModalFecha(false)
+    setFechaTexto('')
+    await cargar()
+  }
+
+  async function quitarFecha() {
+    await supabase.from('clients').update({ next_contact_at: null }).eq('id', id)
+    await cargar()
+  }
+
+  function fijarFechaEscrita() {
+    const iso = parsearFechaFijada(fechaTexto)
+    if (!iso) {
+      Alert.alert('Fecha inválida', 'Escribila como 12/10/2026.')
+      return
+    }
+    if (esAnteriorAHoy(iso)) {
+      Alert.alert('Esa fecha ya pasó', 'Elegí una fecha de hoy en adelante.')
+      return
+    }
+    fijarFecha(iso)
   }
 
   async function cambiarTemp(t: string) {
@@ -132,7 +194,7 @@ export default function ClienteDetail() {
         {
           text: 'Confirmar venta',
           onPress: async () => {
-            await supabase.from('clients').update({ sold: true, sale_date: new Date().toISOString().split('T')[0] }).eq('id', id)
+            await supabase.from('clients').update({ sold: true, sale_date: new Date().toISOString().split('T')[0], next_contact_at: null }).eq('id', id)
             await supabase.from('interactions').insert({ client_id: id, type: 'sale', content: 'Venta cerrada' })
             setClient(prev => prev ? { ...prev, sold: true } : prev)
             await cargar()
@@ -147,6 +209,8 @@ export default function ClienteDetail() {
     await supabase.from('clients').update({
       temperature: 'cold',
       motivo_descarte: motivoDescarte.trim(),
+      // Un lead descartado no debe seguir apareciendo por una fecha fijada.
+      next_contact_at: null,
     }).eq('id', id)
     await supabase.from('interactions').insert({
       client_id: id,
@@ -162,7 +226,7 @@ export default function ClienteDetail() {
     if (!nota.trim()) return
     setGuardando(true)
     await supabase.from('interactions').insert({ client_id: id, type: 'note', content: nota.trim() })
-    await supabase.from('clients').update({ last_contact_at: new Date().toISOString(), contact_count: (client?.contact_count || 0) + 1 }).eq('id', id)
+    await supabase.from('clients').update({ last_contact_at: new Date().toISOString(), contact_count: (client?.contact_count || 0) + 1, next_contact_at: null }).eq('id', id)
     setNota(''); setModalNota(false); setGuardando(false)
     await cargar()
   }
@@ -320,6 +384,17 @@ export default function ClienteDetail() {
               <View style={[styles.tempHint, { backgroundColor: estadoTemp.color + '14' }]}>
                 <Ionicons name={estadoTemp.icon as any} size={15} color={estadoTemp.color} />
                 <Text style={[styles.tempHintText, { color: estadoTemp.color }]}>{estadoTemp.texto}</Text>
+              </View>
+            )}
+
+            {/* La fecha fijada se ve sin entrar al tab: es la excepción a la
+                regla de temperatura y tiene que saltar a la vista. */}
+            {client.next_contact_at && (
+              <View style={styles.fechaHint}>
+                <Ionicons name="calendar" size={15} color={T.purpleText} />
+                <Text style={styles.fechaHintText}>
+                  Próximo contacto: {fechaCorta(client.next_contact_at)} · fijado por vos
+                </Text>
               </View>
             )}
 
@@ -517,6 +592,55 @@ export default function ClienteDetail() {
                       )
                     })}
                   </View>
+
+                  <Text style={styles.sectionLabel}>PRÓXIMO CONTACTO</Text>
+                  <View style={styles.fechaBox}>
+                    {client.next_contact_at ? (
+                      <>
+                        <View style={styles.fechaActualRow}>
+                          <View style={styles.fechaIconWrap}>
+                            <Ionicons name="calendar" size={17} color={T.purpleText} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.fechaActual}>{fechaLarga(client.next_contact_at)}</Text>
+                            <Text style={styles.fechaActualSub}>{proximoContactoTexto(client)}</Text>
+                          </View>
+                          <TouchableOpacity onPress={quitarFecha} style={styles.quitarBtn} activeOpacity={0.7}>
+                            <Text style={styles.quitarBtnText}>Quitar</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={styles.fechaAyuda}>
+                          Con fecha fijada, este cliente no sigue la regla de temperatura. Al registrar un contacto vuelve al automático.
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.fechaAyuda}>
+                          ¿Te pidió que lo llames más adelante? Fijá la fecha y este cliente deja de seguir la regla de temperatura.
+                        </Text>
+                        <View style={styles.chipsRow}>
+                          {OPCIONES_FECHA.map(o => (
+                            <TouchableOpacity
+                              key={o.label}
+                              style={styles.chip}
+                              onPress={() => fijarFecha(o.valor())}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.chipText}>{o.label}</Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TouchableOpacity
+                            style={[styles.chip, styles.chipOtra]}
+                            onPress={() => setModalFecha(true)}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="calendar-outline" size={13} color={T.textSub} />
+                            <Text style={styles.chipText}>Otra fecha</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
+                  </View>
                 </>
               )}
             </>
@@ -632,6 +756,41 @@ export default function ClienteDetail() {
           </ScrollView>
         </View>
       </Modal>
+
+      <Modal visible={modalFecha} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitulo}>¿Cuándo lo contactás?</Text>
+            <Text style={styles.modalSub}>
+              Escribila como 12/10/2026. Si no ponés el año, tomamos el más cercano.
+            </Text>
+            <TextInput
+              style={styles.fechaInput}
+              placeholder="12/10/2026"
+              placeholderTextColor={T.muted}
+              value={fechaTexto}
+              onChangeText={setFechaTexto}
+              maxLength={10}
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                style={styles.btnCancelar}
+                onPress={() => { setModalFecha(false); setFechaTexto('') }}
+              >
+                <Text style={styles.btnCancelarText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnGuardar, !fechaTexto.trim() && { opacity: 0.4 }]}
+                onPress={fijarFechaEscrita}
+                disabled={!fechaTexto.trim()}
+              >
+                <Text style={styles.btnGuardarText}>Fijar fecha</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -654,6 +813,8 @@ const styles = StyleSheet.create({
   clientName:            { color: NEGRO, fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
   tempHint:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12, marginBottom: 14 },
   tempHintText:  { fontSize: 12.5, fontWeight: '600', flex: 1 },
+  fechaHint:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12, marginBottom: 14, backgroundColor: T.purpleDim },
+  fechaHintText: { color: T.purpleText, fontSize: 12.5, fontWeight: '700', flex: 1 },
   badgeRow:              { flexDirection: 'row', gap: 7, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
   badge:                 { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText:             { fontSize: 10.5, fontWeight: '700' },
@@ -713,6 +874,19 @@ const styles = StyleSheet.create({
   starsBox:              { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: T.white, borderRadius: 16, paddingVertical: 14, marginBottom: 20, borderWidth: 0.5, borderColor: T.border },
   starBtn:               { padding: 4 },
 
+  fechaBox:              { backgroundColor: T.white, borderRadius: 16, padding: 15, marginBottom: 20, borderWidth: 0.5, borderColor: T.border },
+  fechaActualRow:        { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  fechaIconWrap:         { width: 38, height: 38, borderRadius: 19, backgroundColor: T.purpleDim, alignItems: 'center', justifyContent: 'center' },
+  fechaActual:           { color: NEGRO, fontSize: 14, fontWeight: '800', textTransform: 'capitalize' },
+  fechaActualSub:        { color: T.purpleText, fontSize: 11.5, fontWeight: '700', marginTop: 2 },
+  quitarBtn:             { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: T.bg, borderWidth: 0.5, borderColor: T.border },
+  quitarBtnText:         { color: T.textSub, fontSize: 11.5, fontWeight: '700' },
+  fechaAyuda:            { color: T.muted, fontSize: 11.5, lineHeight: 17, marginTop: 10 },
+  chipsRow:              { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  chip:                  { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 20, backgroundColor: T.bg, borderWidth: 0.5, borderColor: T.border },
+  chipOtra:              { backgroundColor: T.white },
+  chipText:              { color: T.textSub, fontSize: 12, fontWeight: '700' },
+
   tempRow:               { flexDirection: 'row', gap: 8, marginBottom: 18 },
   tempBtn:               { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1 },
   tempBtnText:           { fontSize: 12.5, fontWeight: '700' },
@@ -731,6 +905,8 @@ const styles = StyleSheet.create({
   modalCard:             { backgroundColor: T.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, paddingTop: 12, paddingBottom: 40 },
   modalHandle:           { width: 38, height: 4, borderRadius: 2, backgroundColor: T.border, alignSelf: 'center', marginBottom: 18 },
   modalTitulo:           { color: NEGRO, fontSize: 20, fontWeight: '800', letterSpacing: -0.4, marginBottom: 4 },
+  modalSub:              { color: T.textSub, fontSize: 12.5, lineHeight: 18, marginTop: 4 },
+  fechaInput:            { backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, color: NEGRO, fontSize: 16, fontWeight: '700', borderWidth: 0.5, borderColor: T.border, marginTop: 14, letterSpacing: 1 },
   motivoBtn:             { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 13, borderRadius: 12, borderWidth: 1, backgroundColor: T.bg, borderColor: T.border },
   notaInput:             { backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, color: NEGRO, fontSize: 14, borderWidth: 0.5, borderColor: T.border, minHeight: 84, textAlignVertical: 'top', marginTop: 12 },
   modalBtns:             { flexDirection: 'row', gap: 10, marginTop: 20 },

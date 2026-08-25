@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
-import { necesitaContactoHoy, proximoContactoTexto } from '../lib/protocolo'
+import { necesitaContactoHoy, proximoContactoTexto, tieneFechaFijada, esAnteriorAHoy } from '../lib/protocolo'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../lib/theme'
 import { APP_NAME } from '../lib/marca'
 import { supabase } from '../lib/supabase'
@@ -119,7 +119,10 @@ export default function HoyScreen() {
     await supabase.from('interactions').insert({ client_id: clientId, type, content })
     await supabase.from('clients').update({
       last_contact_at: new Date().toISOString(),
-      contact_count: (cliente?.contact_count || 0) + 1
+      contact_count: (cliente?.contact_count || 0) + 1,
+      // Igual que en la ficha: la fecha fijada se consume al contactar y el
+      // cliente vuelve a la regla de temperatura.
+      next_contact_at: null,
     }).eq('id', clientId)
     await cargar()
   }
@@ -148,15 +151,15 @@ export default function HoyScreen() {
     const f = new Date(c.sale_date)
     return f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear()
   }).length
+  // Una fecha fijada a mano es una promesa que le hiciste al cliente: cuando
+  // vence sube a "ahora mismo" sin importar la temperatura.
   const urgentes = activos.filter(c =>
-    necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at) && c.temperature === 'hot'
+    necesitaContactoHoy(c) && (c.temperature === 'hot' || tieneFechaFijada(c))
   )
   const masTarde = activos.filter(c =>
-    necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at) && c.temperature !== 'hot'
+    necesitaContactoHoy(c) && c.temperature !== 'hot' && !tieneFechaFijada(c)
   )
-  const proximos = activos.filter(c =>
-    !necesitaContactoHoy(c.contact_count, c.temperature, c.last_contact_at)
-  )
+  const proximos = activos.filter(c => !necesitaContactoHoy(c))
 
   // Lead prioritario: el hot urgente con más días sin contacto (el que está por perder)
   function diasSinContacto(c: Client): number {
@@ -236,10 +239,18 @@ export default function HoyScreen() {
                   {c.vehicle_interest || 'Sin vehículo asignado'}
                 </Text>
               </View>
-              <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
-                <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>
-                  {tempLabel(c.temperature)}
-                </Text>
+              <View style={styles.badgeCol}>
+                <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
+                  <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>
+                    {tempLabel(c.temperature)}
+                  </Text>
+                </View>
+                {tieneFechaFijada(c) && (
+                  <View style={styles.fechaBadge}>
+                    <Ionicons name="calendar" size={9} color={T.purpleText} />
+                    <Text style={styles.fechaBadgeText}>Fijado</Text>
+                  </View>
+                )}
               </View>
             </View>
           </TouchableOpacity>
@@ -390,12 +401,16 @@ export default function HoyScreen() {
           activeOpacity={0.9}
         >
           <View style={styles.prioHeader}>
-            <Ionicons name="flame" size={15} color="#fff" />
+            <Ionicons name={tieneFechaFijada(prioritario) ? 'calendar' : 'flame'} size={15} color="#fff" />
             <Text style={styles.prioLabel}>TU PRIORIDAD DE HOY</Text>
           </View>
           <Text style={styles.prioNombre}>{prioritario.name}</Text>
           <Text style={styles.prioMotivo}>
-            {diasSinContacto(prioritario) >= 900
+            {prioritario.next_contact_at
+              ? esAnteriorAHoy(prioritario.next_contact_at)
+                ? 'Se te pasó la fecha que le prometiste. Contactalo ya.'
+                : 'Vos fijaste este contacto para hoy. Se lo prometiste.'
+              : diasSinContacto(prioritario) >= 900
               ? 'Todavía no lo contactaste. Es tu lead más caliente.'
               : `Hace ${diasSinContacto(prioritario)} día${diasSinContacto(prioritario) !== 1 ? 's' : ''} sin contacto — está por enfriarse.`}
           </Text>
@@ -434,8 +449,14 @@ export default function HoyScreen() {
             <ClienteCard
               key={c.id}
               c={c}
-              accionColor={T.red}
-              accionTexto={c.contact_count === 0 ? 'Primer contacto pendiente' : `Contacto #${c.contact_count + 1} — toca hoy`}
+              accionColor={tieneFechaFijada(c) ? T.purpleText : T.red}
+              accionTexto={
+                tieneFechaFijada(c)
+                  ? proximoContactoTexto(c)
+                  : c.contact_count === 0
+                  ? 'Primer contacto pendiente'
+                  : `Contacto #${c.contact_count + 1} — toca hoy`
+              }
             />
           ))}
         </>
@@ -472,14 +493,25 @@ export default function HoyScreen() {
                 </View>
                 <View style={styles.cardInfo}>
                   <Text style={styles.cardName} numberOfLines={1}>{c.name}</Text>
-                  <Text style={styles.cardAccion} numberOfLines={1}>
-                    {proximoContactoTexto(c.contact_count, c.temperature, c.last_contact_at)}
+                  <Text
+                    style={[styles.cardAccion, tieneFechaFijada(c) && { color: T.purpleText, fontWeight: '700' }]}
+                    numberOfLines={1}
+                  >
+                    {proximoContactoTexto(c)}
                   </Text>
                 </View>
-                <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
-                  <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>
-                    {tempLabel(c.temperature)}
-                  </Text>
+                <View style={styles.badgeCol}>
+                  <View style={[styles.badge, { backgroundColor: tempDim(c.temperature) }]}>
+                    <Text style={[styles.badgeText, { color: tempTextColor(c.temperature) }]}>
+                      {tempLabel(c.temperature)}
+                    </Text>
+                  </View>
+                  {tieneFechaFijada(c) && (
+                    <View style={styles.fechaBadge}>
+                      <Ionicons name="calendar" size={9} color={T.purpleText} />
+                      <Text style={styles.fechaBadgeText}>Fijado</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </TouchableOpacity>
@@ -575,6 +607,9 @@ const styles = StyleSheet.create({
 
   badge:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText:    { fontSize: 10.5, fontWeight: '700' },
+  badgeCol:      { alignItems: 'flex-end', gap: 4 },
+  fechaBadge:    { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: T.purpleDim },
+  fechaBadgeText:{ color: T.purpleText, fontSize: 9.5, fontWeight: '800' },
 
   quickBtns:    { flexDirection: 'row', gap: 6, marginTop: 12, paddingTop: 11, borderTopWidth: 0.5, borderTopColor: T.border },
   quickBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 10, backgroundColor: T.bg },
