@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, RefreshControl, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, RefreshControl, ActivityIndicator, InteractionManager } from 'react-native'
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { Client, Origen } from '../lib/types'
 import { getClients, addClient } from '../lib/clientesService'
@@ -61,14 +61,26 @@ export default function ClientesScreen() {
   useFocusEffect(
     React.useCallback(() => {
       cargar()
-      if (params.nuevo === '1') {
-        setTimeout(() => setModal(true), 300)
-      }
       tooltipVisto('clientes').then(visto => {
         if (!visto) setMostrarTooltip(true)
       })
     }, [])
   )
+
+  // El deep link "Agregar mi primer cliente" (index.tsx) llega como ?nuevo=1.
+  // Va en un useEffect propio y no en el useFocusEffect: el parametro se consume
+  // una sola vez, cuando llega. Si quedara en la ruta, cada foco de la pantalla
+  // volveria a abrir el modal solo.
+  useEffect(() => {
+    if (params.nuevo !== '1') return
+    router.setParams({ nuevo: undefined })
+    // Esperamos a que termine la transicion de navegacion en vez de adivinar un
+    // delay. Presentar un Modal mientras la pantalla entra puede fallar en
+    // Android y dejar el estado en true sin nada visible: desde ahi el boton +
+    // queda muerto, porque setModal(true) sobre un true ya es un no-op.
+    const tarea = InteractionManager.runAfterInteractions(() => abrirNuevoCliente())
+    return () => tarea.cancel()
+  }, [params.nuevo])
 
   async function onRefresh() {
     setRefreshing(true)
@@ -91,6 +103,13 @@ export default function ClientesScreen() {
     setNombre(''); setTelefono(''); setVehiculo(''); setPresupuesto('')
     setTrabajo(''); setCumple(''); setClub(''); setTemp('warm'); setOrigen(null)
     setMasDetalles(false)
+  }
+
+  // Unica puerta de entrada al modal: el form arranca limpio y se abre al toque,
+  // sin timers de por medio.
+  function abrirNuevoCliente() {
+    limpiarForm()
+    setModal(true)
   }
 
   async function guardarCliente() {
@@ -303,7 +322,7 @@ export default function ClientesScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={() => setModal(true)} activeOpacity={0.85}>
+      <TouchableOpacity style={styles.fab} onPress={abrirNuevoCliente} activeOpacity={0.85}>
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
 
