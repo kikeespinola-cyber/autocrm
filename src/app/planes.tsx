@@ -8,6 +8,10 @@ import { APP_NAME, APP_FOOTER, WHATSAPP_NUMERO } from '../lib/marca'
 
 const NEGRO = '#1A1A2E'
 
+// La app se publica gratuita: el cobro se coordina 100% por fuera, por WhatsApp.
+// Por eso acá no va ningún monto, plan ni botón de compra — Apple y Google
+// rechazan las apps que venden desde adentro sin pasar por su facturación.
+
 const BENEFICIOS = [
   { icon: 'people',        titulo: 'Clientes ilimitados',      sub: 'Toda tu cartera organizada en un solo lugar' },
   { icon: 'sparkles',      titulo: 'IA que vende por vos',      sub: 'Sugerencias y mensajes listos para cada cliente' },
@@ -18,14 +22,9 @@ const BENEFICIOS = [
 ]
 
 const RAZONES = [
-  'Una sola venta extra al año paga la app muchas veces',
+  'Sabés a quién contactar cada día, sin pensarlo',
   'Ningún cliente se pierde por falta de seguimiento',
   'Ahorrás horas de trabajo manual cada semana',
-]
-
-const PLANES = [
-  { key: 'mensual', nombre: 'Mensual', precio: 'Gs. 50.000', periodo: '/mes', destacado: false, ahorro: null, nota: 'Ideal para arrancar' },
-  { key: 'anual',   nombre: 'Anual',   precio: 'Gs. 500.000', periodo: '/año', destacado: true,  ahorro: '2 meses gratis', nota: 'Pagás 10 meses, usás 12' },
 ]
 
 export default function PlanesScreen() {
@@ -47,8 +46,8 @@ export default function PlanesScreen() {
     setNombre(sub?.nombre_vendedor || user.email?.split('@')[0] || 'Vendedor')
   }
 
-  function contratar(planNombre: string) {
-    const mensaje = `Hola, soy ${nombre} (${email}). Quiero activar el plan ${planNombre.toLowerCase()} de ${APP_NAME}.`
+  function escribirnos() {
+    const mensaje = `Hola, soy ${nombre} (${email}). Quiero activar mi cuenta de ${APP_NAME}.`
     Linking.openURL(`https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensaje)}`)
   }
 
@@ -58,7 +57,7 @@ export default function PlanesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={NEGRO} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Planes</Text>
+        <Text style={styles.headerTitle}>Tu cuenta</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -100,49 +99,22 @@ export default function PlanesScreen() {
           ))}
         </View>
 
-        {/* Planes */}
-        <Text style={styles.sectionLabel}>ELEGÍ TU PLAN</Text>
-        {PLANES.map(p => (
-          <View key={p.key} style={[styles.planCard, p.destacado && styles.planDestacado]}>
-            {p.destacado && (
-              <View style={styles.badgeMejor}>
-                <Ionicons name="star" size={11} color="#fff" />
-                <Text style={styles.badgeMejorText}>MÁS ELEGIDO · AHORRÁS 16%</Text>
-              </View>
-            )}
-            <View style={styles.planHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.planNombre}>{p.nombre}</Text>
-                <Text style={styles.planNota}>{p.nota}</Text>
-                {p.ahorro && (
-                  <View style={styles.ahorroTag}>
-                    <Ionicons name="gift" size={11} color={T.green} />
-                    <Text style={styles.ahorroText}>{p.ahorro}</Text>
-                  </View>
-                )}
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.planPrecio}>{p.precio}</Text>
-                <Text style={styles.planPeriodo}>{p.periodo}</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.planBtn, p.destacado ? styles.planBtnDestacado : styles.planBtnNormal]}
-              onPress={() => contratar(p.nombre)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="logo-whatsapp" size={17} color={p.destacado ? '#fff' : NEGRO} />
-              <Text style={[styles.planBtnText, { color: p.destacado ? '#fff' : NEGRO }]}>
-                Contratar {p.nombre.toLowerCase()}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+        {/* Único llamado a la acción: escribirnos */}
+        <View style={styles.ctaCard}>
+          <Text style={styles.ctaTitulo}>¿Querés seguir usando {APP_NAME}?</Text>
+          <Text style={styles.ctaSub}>
+            Escribinos por WhatsApp y activamos tu cuenta. Te acompañamos en todo el proceso.
+          </Text>
+          <TouchableOpacity style={styles.ctaBtn} onPress={escribirnos} activeOpacity={0.85}>
+            <Ionicons name="logo-whatsapp" size={18} color="#fff" />
+            <Text style={styles.ctaBtnText}>Escribinos para activar tu cuenta</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.infoBox}>
           <Ionicons name="shield-checkmark-outline" size={17} color={T.accentText} />
           <Text style={styles.infoText}>
-            Al tocar "Contratar" se abre WhatsApp para coordinar el pago por transferencia. Apenas lo confirmamos, activamos tu plan al instante — sin perder nada de tu información.
+            Te respondemos por WhatsApp y activamos tu cuenta al instante — sin perder nada de tu información.
           </Text>
         </View>
 
@@ -179,21 +151,11 @@ const styles = StyleSheet.create({
   razonRow:        { flexDirection: 'row', alignItems: 'flex-start', gap: 9, paddingVertical: 5 },
   razonText:       { color: T.greenText, fontSize: 13, flex: 1, lineHeight: 18 },
 
-  planCard:        { backgroundColor: T.white, borderRadius: 18, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: T.border },
-  planDestacado:   { borderColor: NEGRO, borderWidth: 2 },
-  badgeMejor:      { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', backgroundColor: NEGRO, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5, marginBottom: 12 },
-  badgeMejorText:  { color: '#fff', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5 },
-  planHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  planNombre:      { color: NEGRO, fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
-  planNota:        { color: T.muted, fontSize: 12, marginTop: 2 },
-  ahorroTag:       { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: T.green + '18', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, marginTop: 8, alignSelf: 'flex-start' },
-  ahorroText:      { color: T.green, fontSize: 11, fontWeight: '700' },
-  planPrecio:      { color: NEGRO, fontSize: 22, fontWeight: '800', letterSpacing: -0.6 },
-  planPeriodo:     { color: T.muted, fontSize: 12, marginTop: 1 },
-  planBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 13, paddingVertical: 15 },
-  planBtnNormal:   { backgroundColor: T.bg, borderWidth: 1, borderColor: T.border },
-  planBtnDestacado:{ backgroundColor: NEGRO },
-  planBtnText:     { fontSize: 14.5, fontWeight: '800' },
+  ctaCard:         { backgroundColor: T.white, borderRadius: 18, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: T.border },
+  ctaTitulo:       { color: NEGRO, fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
+  ctaSub:          { color: T.muted, fontSize: 13, marginTop: 6, lineHeight: 19, marginBottom: 16 },
+  ctaBtn:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 13, paddingVertical: 15, backgroundColor: '#25D366' },
+  ctaBtnText:      { color: '#fff', fontSize: 14.5, fontWeight: '800' },
 
   infoBox:         { flexDirection: 'row', alignItems: 'flex-start', gap: 9, backgroundColor: T.accentDim, borderRadius: 14, padding: 14, marginTop: 6, borderWidth: 0.5, borderColor: T.accent + '33' },
   infoText:        { color: T.accentText, fontSize: 12.5, lineHeight: 18, flex: 1 },

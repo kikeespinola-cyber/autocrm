@@ -305,7 +305,7 @@ export default function PerfilScreen() {
               {diasTrial <= 0 ? 'Tu prueba venció' : `Te quedan ${diasTrial} día${diasTrial !== 1 ? 's' : ''} de prueba`}
             </Text>
             <Text style={styles.trialSub}>
-              {diasTrial <= 3 ? 'Tocá para ver los planes y activar' : 'Prueba activa · Tocá para ver los planes'}
+              {diasTrial <= 3 ? 'Tocá para activar tu cuenta' : 'Prueba activa · Tocá para ver más'}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={17} color={T.muted} />

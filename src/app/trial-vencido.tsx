@@ -1,12 +1,14 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useState, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
-import { APP_NAME, APP_FOOTER } from '../lib/marca'
+import { APP_NAME, APP_FOOTER, WHATSAPP_NUMERO } from '../lib/marca'
 
 const NEGRO = '#1A1A2E'
-const WHATSAPP = '595985715389'
+
+// Sin precios ni link a planes: el único camino es escribirnos por WhatsApp.
+// La activación se coordina y se cobra por fuera de la app.
 
 const BENEFICIOS = [
   { icon: 'people',          texto: 'Todos tus clientes y datos guardados' },
@@ -18,14 +20,31 @@ const BENEFICIOS = [
 ]
 
 export default function TrialVencidoScreen() {
-  const router = useRouter()
+  const [nombre, setNombre] = useState('Vendedor')
+  const [email, setEmail]   = useState('')
+
+  useEffect(() => { cargar() }, [])
+
+  // Sin esto el mensaje llega sin remitente y hay que preguntar quién escribe.
+  async function cargar() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setEmail(user.email || '')
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('nombre_vendedor')
+      .eq('user_id', user.id)
+      .single()
+    setNombre(sub?.nombre_vendedor || user.email?.split('@')[0] || 'Vendedor')
+  }
+
+  function escribirnos() {
+    const mensaje = `Hola, soy ${nombre} (${email}). Mi prueba de ${APP_NAME} terminó y quiero activar mi cuenta.`
+    Linking.openURL(`https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensaje)}`)
+  }
 
   async function cerrarSesion() {
     await supabase.auth.signOut()
-  }
-
-  function verPlanes() {
-    router.push('/planes')
   }
 
   return (
@@ -34,9 +53,9 @@ export default function TrialVencidoScreen() {
         <Ionicons name="time-outline" size={42} color={T.warm} />
       </View>
 
-      <Text style={styles.titulo}>Tu período de prueba terminó</Text>
+      <Text style={styles.titulo}>Tu prueba terminó</Text>
       <Text style={styles.sub}>
-        Tus 14 días gratuitos finalizaron. Activá tu plan para seguir usando {APP_NAME} sin perder nada de tu historial.
+        Tus 14 días gratuitos finalizaron. Escribinos y activamos tu cuenta para que sigas usando {APP_NAME} sin perder nada de tu historial.
       </Text>
 
       <View style={styles.card}>
@@ -55,13 +74,13 @@ export default function TrialVencidoScreen() {
       <View style={styles.avisoBox}>
         <Ionicons name="shield-checkmark-outline" size={16} color={T.green} />
         <Text style={styles.avisoText}>
-          Tus datos están guardados y seguros. Al activar tu plan recuperás todo tal como lo dejaste.
+          Tus datos están guardados y seguros. Cuando activamos tu cuenta recuperás todo tal como lo dejaste.
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.btnPrincipal} onPress={verPlanes} activeOpacity={0.85}>
-        <Ionicons name="card" size={19} color="#fff" />
-        <Text style={styles.btnPrincipalText}>Ver planes y activar</Text>
+      <TouchableOpacity style={styles.btnPrincipal} onPress={escribirnos} activeOpacity={0.85}>
+        <Ionicons name="logo-whatsapp" size={19} color="#fff" />
+        <Text style={styles.btnPrincipalText}>Escribinos para activar tu cuenta</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.btnSecundario} onPress={cerrarSesion} activeOpacity={0.7}>
