@@ -12,7 +12,11 @@
       "bundleIdentifier": "com.kikeespinola.vendix",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Vendix accede a tu galería para que puedas elegir una foto de perfil y agregar fotos de los vehículos que ofrecés a tus clientes, por ejemplo al cargar un auto en tu catálogo."
+        "NSPhotoLibraryUsageDescription": "Vendix accede a tu galería para que puedas elegir una foto de perfil y agregar fotos de los vehículos que ofrecés a tus clientes, por ejemplo al cargar un auto en tu catálogo.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
