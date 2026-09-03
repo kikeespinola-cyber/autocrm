@@ -11,7 +11,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.kikeespinola.vendix",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Vendix accede a tu galería para que puedas elegir una foto de perfil y agregar fotos de los vehículos que ofrecés a tus clientes, por ejemplo al cargar un auto en tu catálogo."
       }
     },
     "android": {
@@ -40,12 +41,24 @@
           }
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-font",
       "expo-image",
       "expo-status-bar",
       "expo-web-browser",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

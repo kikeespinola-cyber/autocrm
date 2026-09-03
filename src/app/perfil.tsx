@@ -12,6 +12,7 @@ import { exportarClientesCSV, exportarClientesPDF } from '../lib/exportar'
 import { actualizarRacha, calcularInsignias } from '../lib/racha'
 import { elegirImagen, subirImagen } from '../lib/imagenService'
 import { pedirPermisos, programarRecordatorioDiario, cancelarRecordatorios, tieneRecordatorioActivo } from '../lib/notificaciones'
+import { mensajeError } from '../lib/errores'
 
 const NEGRO = '#1A1A2E'
 
@@ -84,6 +85,12 @@ export default function PerfilScreen() {
   const [guardando, setGuardando]           = useState(false)
   const [subiendoFoto, setSubiendoFoto]     = useState(false)
   const [modalExportar, setModalExportar]   = useState(false)
+  const [modalEliminar, setModalEliminar]   = useState(false)
+  const [textoEliminar, setTextoEliminar]   = useState('')
+  const [eliminando, setEliminando]         = useState(false)
+
+  // Confirmación fuerte: el botón no se habilita hasta que el texto coincide.
+  const puedeEliminar = textoEliminar.trim().toUpperCase() === 'ELIMINAR' && !eliminando
 
   useEffect(() => {
     cargar()
@@ -200,6 +207,73 @@ export default function PerfilScreen() {
     )
   }
 
+  // Apple 5.1.1(v): la eliminación tiene que poder hacerse entera desde adentro
+  // de la app. Dos pasos a propósito — este alert explica qué se pierde, y el
+  // modal exige escribir ELIMINAR. Se usa Modal y no Alert.prompt porque
+  // Alert.prompt es sólo iOS y en Android no hace nada.
+  function confirmarEliminacion() {
+    Alert.alert(
+      '¿Eliminar tu cuenta?',
+      'Se van a eliminar todos tus clientes, su historial, tus reuniones, tu catálogo y tus datos, de forma permanente e irreversible. Esto no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: () => { setTextoEliminar(''); setModalEliminar(true) },
+        },
+      ]
+    )
+  }
+
+  // functions.invoke envuelve cualquier no-2xx en un FunctionsHttpError cuyo
+  // message es siempre el mismo texto genérico, y deja el cuerpo sin leer en
+  // error.context. El {error, paso} que devuelve la función vive ahí, y es lo
+  // único que dice en qué etapa se cortó el borrado.
+  async function detalleDeError(e: any): Promise<string> {
+    try {
+      const body = await e?.context?.json?.()
+      if (body?.error) {
+        return body.paso ? `${body.error} (paso: ${body.paso})` : body.error
+      }
+    } catch {
+      // Cuerpo no-JSON o ya consumido: se cae al mensaje genérico de abajo.
+    }
+    return mensajeError(e)
+  }
+
+  async function eliminarCuenta() {
+    if (!puedeEliminar) return
+    setEliminando(true)
+    try {
+      const { error } = await supabase.functions.invoke('eliminar-cuenta')
+      if (error) throw error
+
+      // El usuario de Auth ya no existe, así que el signOut contra el servidor
+      // devolvería 401. Con scope local se limpia expo-secure-store sin depender
+      // de la red, que es lo único que hace falta para no quedar con una sesión
+      // apuntando a una cuenta borrada.
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch {
+        // Da igual: la sesión ya no sirve y el guard de _layout manda a /login.
+      }
+
+      setModalEliminar(false)
+      router.replace('/login')
+    } catch (e) {
+      // Sin prometer que quedó intacta: si falló a mitad de camino puede haber
+      // datos ya borrados. Reintentar es seguro, todos los pasos son idempotentes.
+      const detalle = await detalleDeError(e)
+      Alert.alert(
+        'No se pudo eliminar la cuenta',
+        `${detalle}\n\nNo se completó la eliminación. Volvé a intentarlo.`
+      )
+    } finally {
+      setEliminando(false)
+    }
+  }
+
   async function exportarCartera(formato: 'pdf' | 'csv') {
     const nombreV = nombreVendedor || user?.email?.split('@')[0] || 'Vendedor'
     try {
@@ -289,9 +363,8 @@ export default function PerfilScreen() {
       </View>
 
       {statusSub === 'trial' && diasTrial !== null && (
-        <TouchableOpacity
+        <View
           style={[styles.trialCard, { borderColor: diasTrial <= 3 ? T.red + '44' : T.warm + '44' }]}
-          onPress={() => router.push('/planes')}
         >
           <View style={[styles.iconCircle, { backgroundColor: (diasTrial <= 3 ? T.red : T.warm) + '1A' }]}>
             <Ionicons
@@ -305,11 +378,12 @@ export default function PerfilScreen() {
               {diasTrial <= 0 ? 'Tu prueba venció' : `Te quedan ${diasTrial} día${diasTrial !== 1 ? 's' : ''} de prueba`}
             </Text>
             <Text style={styles.trialSub}>
-              {diasTrial <= 3 ? 'Tocá para activar tu cuenta' : 'Prueba activa · Tocá para ver más'}
+              {diasTrial <= 0
+                ? 'Tus datos están guardados y te esperan'
+                : 'Tu prueba está activa'}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={17} color={T.muted} />
-        </TouchableOpacity>
+        </View>
       )}
 
       <View style={styles.rachaCard}>
@@ -512,7 +586,64 @@ export default function PerfilScreen() {
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity onPress={confirmarEliminacion} style={styles.eliminarLink} activeOpacity={0.7}>
+        <Text style={styles.eliminarLinkText}>Eliminar mi cuenta</Text>
+      </TouchableOpacity>
+
       <Text style={styles.footer}>{APP_FOOTER}</Text>
+
+      {/* Modal eliminar cuenta */}
+      <Modal
+        visible={modalEliminar}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => { if (!eliminando) setModalEliminar(false) }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitulo}>Eliminar cuenta</Text>
+            <Text style={styles.eliminarAviso}>
+              Se borra de forma permanente tu cuenta y todo lo que cargaste: clientes,
+              historial de contactos, reuniones, catálogo, pautas y tus datos de perfil.
+              No se puede deshacer ni recuperar.
+            </Text>
+
+            <Text style={styles.inputLabel}>ESCRIBÍ ELIMINAR PARA CONFIRMAR</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="ELIMINAR"
+              placeholderTextColor={T.muted}
+              value={textoEliminar}
+              onChangeText={setTextoEliminar}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              editable={!eliminando}
+            />
+
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                style={styles.btnCancelar}
+                onPress={() => setModalEliminar(false)}
+                disabled={eliminando}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.btnCancelarText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnEliminar, !puedeEliminar && styles.btnEliminarOff]}
+                onPress={eliminarCuenta}
+                disabled={!puedeEliminar}
+                activeOpacity={0.85}
+              >
+                {eliminando
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.btnGuardarText}>Eliminar cuenta</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal editar perfil */}
       <Modal visible={modalPerfil} animationType="slide" transparent={true}>
@@ -750,4 +881,10 @@ const styles = StyleSheet.create({
   btnCancelarText:   { color: T.textSub, fontWeight: '700', fontSize: 14 },
   btnGuardar:        { flex: 1.4, padding: 15, borderRadius: 14, alignItems: 'center', backgroundColor: NEGRO },
   btnGuardarText:    { color: '#fff', fontWeight: '800', fontSize: 14 },
+
+  eliminarLink:      { alignSelf: 'center', marginTop: 18, paddingVertical: 6, paddingHorizontal: 10 },
+  eliminarLinkText:  { color: T.red, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
+  eliminarAviso:     { color: T.textSub, fontSize: 13, lineHeight: 20, marginTop: 10 },
+  btnEliminar:       { flex: 1.4, padding: 15, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: T.red },
+  btnEliminarOff:    { opacity: 0.4 },
 })

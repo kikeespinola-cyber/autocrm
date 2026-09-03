@@ -8,7 +8,7 @@ import { Client } from '../lib/types'
 import { getClients } from '../lib/clientesService'
 import { necesitaContactoHoy, proximoContactoTexto, tieneFechaFijada, esAnteriorAHoy } from '../lib/protocolo'
 import { T, tempColor, tempDim, tempTextColor, tempLabel } from '../lib/theme'
-import { APP_NAME, WHATSAPP_NUMERO } from '../lib/marca'
+import { APP_NAME } from '../lib/marca'
 import { supabase } from '../lib/supabase'
 import Tooltip from '../components/Tooltip'
 import { tooltipVisto, marcarTooltipVisto } from '../lib/tooltips'
@@ -281,13 +281,7 @@ export default function HoyScreen() {
       </Text>
 
       {diasTrial !== null && diasTrial <= 3 && (
-        <TouchableOpacity
-          style={styles.trialBanner}
-          onPress={() => Linking.openURL(
-            `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(`Hola, quiero activar mi cuenta de ${APP_NAME}.`)}`
-          )}
-          activeOpacity={0.85}
-        >
+        <View style={styles.trialBanner}>
           <View style={styles.trialIconWrap}>
             <Ionicons name={diasTrial <= 0 ? 'alert-circle' : 'time'} size={20} color="#fff" />
           </View>
@@ -299,10 +293,13 @@ export default function HoyScreen() {
                 ? 'Te queda 1 día de prueba'
                 : `Te quedan ${diasTrial} días de prueba`}
             </Text>
-            <Text style={styles.trialSub}>Tocá para escribirnos y activar tu cuenta</Text>
+            <Text style={styles.trialSub}>
+              {diasTrial <= 0
+                ? 'Tus datos están guardados y te esperan'
+                : 'Tu prueba sigue activa'}
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
-        </TouchableOpacity>
+        </View>
       )}
 
       <View style={styles.statsRow}>

@@ -12,3 +12,12 @@ entrypoint = "./functions/sugerencia-ia/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/sugerencia-ia/*.html" ]
+
+[functions.eliminar-cuenta]
+enabled = true
+# Obligatorio acá: la identidad del que borra sale del JWT y de ningún otro
+# lado. Con verify_jwt = false, la función aceptaría requests sin token y el
+# getUser() de adentro fallaría, pero es la única barrera — no la aflojes.
+verify_jwt = true
+import_map = "./functions/eliminar-cuenta/deno.json"
+entrypoint = "./functions/eliminar-cuenta/index.ts"

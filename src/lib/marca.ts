@@ -7,6 +7,3 @@ export const APP_FOOTER = `${APP_NAME} · ${APP_SLOGAN}`
 // URLs legales
 export const URL_PRIVACIDAD = 'https://vendix-legal.vercel.app/privacidad.html'
 export const URL_TERMINOS = 'https://vendix-legal.vercel.app/terminos.html'
-
-// Contacto
-export const WHATSAPP_NUMERO = '595985715389'

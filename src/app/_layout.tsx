@@ -197,7 +197,6 @@ export default function Layout() {
       <Tabs.Screen name="pautas" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="catalogo" options={{ href: null, headerShown: true }} />
       <Tabs.Screen name="admin" options={{ href: null, headerShown: true }} />
-      <Tabs.Screen name="planes" options={{ href: null, headerShown: false }} />
     </Tabs>
     </ToastProvider>
   )

@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native'
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
 import { T } from '../lib/theme'
@@ -34,6 +35,7 @@ const COSTO_IA_POR_VEND_USD = 2     // presupuesto de IA por vendedor/mes (con a
 const USD_A_GS = 7300               // cotización aprox para mostrar en guaraníes
 
 export default function AdminScreen() {
+  const router = useRouter()
   const [usuarios, setUsuarios]     = useState<Usuario[]>([])
   const [loading, setLoading]       = useState(true)
   const [isAdmin, setIsAdmin]       = useState(false)
@@ -42,23 +44,43 @@ export default function AdminScreen() {
   const [search, setSearch]         = useState('')
   const [filtro, setFiltro]         = useState('todos')
 
-  useEffect(() => { verificar() }, [])
+  // Se revalida en cada foco, no una sola vez al montar: si el flag cambia o la
+  // sesión se cae, la pantalla se cierra sola en vez de quedar abierta con datos viejos.
+  useFocusEffect(
+    useCallback(() => {
+      verificar()
+    }, [])
+  )
+
+  // Fail-closed: sin sesión, sin fila, sin flag o con cualquier error (RLS, red)
+  // se sale de la pantalla. Nada del panel — usuarios ni finanzas — llega a montarse.
+  function expulsar() {
+    setIsAdmin(false)
+    setUsuarios([])
+    setVerFinanzas(false)
+    setCheckeando(false)
+    router.replace('/')
+  }
 
   async function verificar() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setCheckeando(false); return }
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { expulsar(); return }
 
-    const { data } = await supabase
-      .from('subscriptions')
-      .select('is_admin')
-      .eq('user_id', user.id)
-      .single()
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('is_admin')
+        .eq('user_id', user.id)
+        .single()
 
-    if (data?.is_admin) {
+      if (error || data?.is_admin !== true) { expulsar(); return }
+
       setIsAdmin(true)
+      setCheckeando(false)
       await cargarUsuarios()
+    } catch {
+      expulsar()
     }
-    setCheckeando(false)
   }
 
   async function cargarUsuarios() {
@@ -114,20 +136,12 @@ export default function AdminScreen() {
   }
 
 
-  if (checkeando) return (
+  // Un no-admin nunca ve contenido acá: mientras se verifica y durante el frame
+  // que dura el redirect sólo hay un loader neutro.
+  if (checkeando || !isAdmin) return (
     <View style={styles.loading}>
       <ActivityIndicator color={NEGRO} size="small" />
       <Text style={styles.loadingText}>Verificando acceso...</Text>
-    </View>
-  )
-
-  if (!isAdmin) return (
-    <View style={styles.loading}>
-      <View style={styles.lockBox}>
-        <Ionicons name="lock-closed" size={30} color={T.muted} />
-      </View>
-      <Text style={styles.restrictTitle}>Acceso restringido</Text>
-      <Text style={styles.restrictSub}>Esta sección es solo para administradores.</Text>
     </View>
   )
 
@@ -408,9 +422,6 @@ const styles = StyleSheet.create({
   emptyText:      { color: NEGRO, fontSize: 16, fontWeight: '700' },
   emptySub:       { color: T.muted, fontSize: 13, textAlign: 'center', marginTop: 2 },
 
-  lockBox:        { width: 70, height: 70, borderRadius: 24, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: T.border, marginBottom: 6 },
-  restrictTitle:  { color: NEGRO, fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
-  restrictSub:    { color: T.muted, fontSize: 13.5, textAlign: 'center' },
 
   titulo:         { color: NEGRO, fontSize: 28, fontWeight: '800', letterSpacing: -0.8 },
   sub:            { color: T.muted, fontSize: 13, marginTop: 3, marginBottom: 18, fontWeight: '500' },
