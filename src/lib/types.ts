@@ -94,6 +94,11 @@ export interface Subscription {
   insignias: string[]               // default {}; existe en la base, racha.ts las calcula en JS y no las persiste
   tooltips_vistos: string[]         // default {}
   meta_mensual: number              // default 0
+  // Avisos de vencimiento por email. NULL = pendiente en este ciclo. Los escribe
+  // solo la Edge Function avisos-vencimiento con service role; la app no puede
+  // (no estan en el grant update de authenticated) y hoy tampoco los lee.
+  aviso_previo_enviado_at: string | null
+  aviso_vencido_enviado_at: string | null
   created_at: string
   updated_at: string
   // subscriptions hace de tabla de perfil ademas de suscripcion.

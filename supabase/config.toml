@@ -21,3 +21,14 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/eliminar-cuenta/deno.json"
 entrypoint = "./functions/eliminar-cuenta/index.ts"
+
+[functions.avisos-vencimiento]
+enabled = true
+# La llama pg_cron por pg_net, no un usuario: del otro lado no hay JWT que
+# verificar y con verify_jwt = true el gateway rechazaría el request antes de
+# que la función corra. La barrera es el header X-Cron-Secret contra
+# CRON_SECRET, chequeado adentro de index.ts, y es la UNICA que hay: sin ella
+# cualquiera con la URL puede disparar emails desde el dominio verificado.
+verify_jwt = false
+import_map = "./functions/avisos-vencimiento/deno.json"
+entrypoint = "./functions/avisos-vencimiento/index.ts"

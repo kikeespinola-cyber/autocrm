@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
@@ -48,6 +48,16 @@ export default function OnboardingScreen() {
   const [concesionaria, setConcesionaria] = useState('')
   const [marca, setMarca]               = useState('')
 
+  // El nombre ya se pidio en el registro y quedo en la metadata de auth. Se
+  // precarga para que el vendedor no lo escriba dos veces, y sigue siendo
+  // editable acá.
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const delRegistro = (user?.user_metadata?.nombre ?? '').trim()
+      if (delRegistro) setNombre(prev => prev || delRegistro)
+    })
+  }, [])
+
   async function finalizar(conDatos: boolean) {
     setGuardando(true)
     try {
@@ -55,8 +65,16 @@ export default function OnboardingScreen() {
       if (!user) return
 
       const updates: any = { onboarding_completado: true }
+
+      // El nombre se escribe SIEMPRE, incluso por "Saltar". Es el unico dato
+      // que ya tenemos del registro, y sin esto quien saltea el onboarding
+      // queda con nombre_vendedor null para siempre: la metadata de auth solo
+      // se llena en el alta y nada mas la copia a subscriptions.
+      const delRegistro = (user.user_metadata?.nombre ?? '').trim()
+      const nombreFinal = conDatos ? (nombre.trim() || delRegistro) : delRegistro
+      if (nombreFinal) updates.nombre_vendedor = nombreFinal
+
       if (conDatos) {
-        if (nombre.trim())        updates.nombre_vendedor = nombre.trim()
         if (concesionaria.trim()) updates.concesionaria = concesionaria.trim()
         if (marca.trim())         updates.marca_vehiculo = marca.trim()
       }

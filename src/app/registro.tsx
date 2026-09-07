@@ -16,6 +16,7 @@ const BENEFICIOS = [
 
 export default function RegistroScreen() {
   const router = useRouter()
+  const [nombre, setNombre]       = useState('')
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
   const [confirmar, setConfirmar] = useState('')
@@ -23,7 +24,7 @@ export default function RegistroScreen() {
   const [loading, setLoading]     = useState(false)
 
   async function registrarse() {
-    if (!email.trim() || !password.trim()) {
+    if (!nombre.trim() || !email.trim() || !password.trim()) {
       Alert.alert('Faltan datos', 'Completá todos los campos')
       return
     }
@@ -36,7 +37,16 @@ export default function RegistroScreen() {
       return
     }
     setLoading(true)
-    const { error } = await supabase.auth.signUp({ email: email.trim(), password })
+    // El nombre viaja en options.data y queda en auth.users.raw_user_meta_data.
+    // De ahí lo levanta el onboarding para escribirlo en
+    // subscriptions.nombre_vendedor, que es lo que leen perfil, el PDF y los
+    // emails de vencimiento. Es el unico momento en que se puede capturar: la
+    // metadata de auth solo se escribe en el alta.
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { nombre: nombre.trim() } },
+    })
     if (error) {
       Alert.alert('No pudimos crear la cuenta', error.message)
     } else {
@@ -78,6 +88,19 @@ export default function RegistroScreen() {
         <View style={styles.form}>
           <Text style={styles.formTitulo}>Creá tu cuenta</Text>
           <Text style={styles.formSub}>Empezá a vender con inteligencia</Text>
+
+          <View style={styles.inputWrap}>
+            <Ionicons name="person-outline" size={18} color={T.muted} />
+            <TextInput
+              style={styles.input}
+              placeholder="Tu nombre"
+              placeholderTextColor={T.muted}
+              value={nombre}
+              onChangeText={setNombre}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+          </View>
 
           <View style={styles.inputWrap}>
             <Ionicons name="mail-outline" size={18} color={T.muted} />
